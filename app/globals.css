@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --font-poppins: 'Poppins', sans-serif;
+
+  /* Brand tokens */
+  --red: #E0242E;
+  --red-dark: #C11C26;
+  --red-soft: #FCECED;
+  --red-line: #F4D4D6;
+  --ink: #18191D;
+  --ink-2: #3C3D44;
+  --ink-3: #6C6E78;
+  --ink-4: #9B9DA6;
+  --bg: #FAFAFB;
+  --surface: #FFFFFF;
+  --line: #E9E9ED;
+  --line-2: #F1F1F4;
+  --success: #1F9254;
+  --warning: #C9820B;
+
+  /* shadcn compat */
+  --background: 0 0% 98%;
+  --foreground: 225 10% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 225 10% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 225 10% 11%;
+  --primary: 358 73% 52%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 225 10% 20%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 225 6% 45%;
+  --accent: 358 90% 95%;
+  --accent-foreground: 358 73% 42%;
+  --destructive: 358 73% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 358 73% 52%;
+  --radius: 0.5rem;
+  --chart-1: 358 73% 52%;
+  --chart-2: 152 55% 35%;
+  --chart-3: 224 70% 50%;
+  --chart-4: 43 74% 48%;
+  --chart-5: 27 87% 55%;
+}
+
+.dark {
+  --background: 225 15% 9%;
+  --foreground: 220 14% 96%;
+  --card: 225 12% 12%;
+  --card-foreground: 220 14% 96%;
+  --popover: 225 12% 12%;
+  --popover-foreground: 220 14% 96%;
+  --primary: 358 73% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 225 10% 18%;
+  --secondary-foreground: 220 14% 96%;
+  --muted: 225 10% 18%;
+  --muted-foreground: 225 6% 55%;
+  --accent: 358 40% 20%;
+  --accent-foreground: 358 73% 70%;
+  --destructive: 358 60% 42%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 225 10% 20%;
+  --input: 225 10% 20%;
+  --ring: 358 73% 55%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-bg text-ink antialiased;
+    font-family: var(--font-poppins), sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-poppins), sans-serif;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  p {
+    line-height: 1.6;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .gradient-brand {
+    background: linear-gradient(135deg, #E0242E 0%, #C11C26 100%);
+  }
+
+  .gradient-brand-soft {
+    background: linear-gradient(135deg, #FCECED 0%, #F4D4D6 100%);
+  }
+
+  .shimmer-bg {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.6) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #E9E9ED transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #E9E9ED;
+    border-radius: 999px;
+  }
+}
