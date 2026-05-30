@@ -118,6 +118,7 @@ export async function generateFullReport(
     assessmentId,
     generatedAt: new Date().toISOString(),
     shareToken: '',
+    favoritePath: answers.targetRole,
     overallScore: summary.overallScore,
     matchLabel: summary.matchLabel,
     executiveSummary: summary.executiveSummary,

@@ -1,13 +1,8 @@
-import { createBrowserClient } from '@supabase/ssr';
 import {
   createLocalUser,
-  isLocalMode,
   parseLocalSession,
   serializeLocalSession,
 } from '@/lib/local-db';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 type LocalQueryPayload = {
   table: 'profiles' | 'reports' | 'assessments';
@@ -139,16 +134,11 @@ function createLocalClient() {
   };
 }
 
-let client: ReturnType<typeof createBrowserClient> | ReturnType<typeof createLocalClient> | null = null;
+let client: ReturnType<typeof createLocalClient> | null = null;
 
 export function createClient() {
   if (client) return client;
 
-  if (isLocalMode()) {
-    client = createLocalClient();
-    return client;
-  }
-
-  client = createBrowserClient(supabaseUrl, supabaseAnonKey);
+  client = createLocalClient();
   return client;
 }

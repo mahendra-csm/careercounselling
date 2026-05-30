@@ -169,7 +169,7 @@ export default function AssessmentFlow() {
                     className="w-full px-4 py-3 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-ink-2 block mb-1.5">Dream career <span className="text-ink-4 font-normal">(optional)</span></label>
+                  <label className="text-sm font-semibold text-ink-2 block mb-1.5">Favourite path <span className="text-ink-4 font-normal">(optional)</span></label>
                   <input value={dreamCareer} onChange={(e) => setDreamCareer(e.target.value)} placeholder="e.g. Doctor, Designer"
                     className="w-full px-4 py-3 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
                 </div>

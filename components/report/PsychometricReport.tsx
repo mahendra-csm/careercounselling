@@ -1,10 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Printer, Phone, Mail, ArrowRight, LayoutDashboard } from 'lucide-react';
 import Link from 'next/link';
 import Logo from '@/components/brand/Logo';
 import type { PsychometricProfile, Bar } from '@/lib/psychometric';
+import { CAREER_LIBRARY } from '@/constants/catalog';
+import { buildSalary, getCareerDetail } from '@/constants/career-details';
 
 const RED = '#E0242E';
 
@@ -38,9 +41,53 @@ const VERDICT_STYLE: Record<string, string> = {
   Avoid: 'text-ink-4 bg-line-2',
 };
 
+function normalizeTitle(title: string) {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function resolveCareerTitle(preferred: string | undefined, fallback: string) {
+  const options = CAREER_LIBRARY.map((career) => career.title);
+  const target = preferred?.trim();
+  if (target) {
+    const exact = options.find((title) => normalizeTitle(title) === normalizeTitle(target));
+    if (exact) return exact;
+
+    const partial = options.find((title) => {
+      const t = normalizeTitle(title);
+      const p = normalizeTitle(target);
+      return t.includes(p) || p.includes(t);
+    });
+    if (partial) return partial;
+  }
+  return fallback;
+}
+
+function toLakhs(amount: number) {
+  return `₹${(amount / 100000).toFixed(amount >= 1000000 ? 0 : 1)}L`;
+}
+
 export default function PsychometricReport({ profile }: { profile: PsychometricProfile }) {
   const p = profile;
+  const [selectedPath, setSelectedPath] = useState(
+    resolveCareerTitle(p.favoritePath ?? p.dreamCareer ?? p.careerFocus, p.careerFocus)
+  );
   const generated = new Date(p.generatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const selectedCareer = CAREER_LIBRARY.find((career) => career.title === selectedPath) ?? CAREER_LIBRARY[0];
+  const selectedDetail = getCareerDetail(selectedPath);
+  const selectedSalary = buildSalary(selectedDetail.salaryBase);
+  const topCareerRows = p.topCareers.map((career) => ({
+    ...career,
+    cluster: CAREER_LIBRARY.find((entry) => entry.title === career.title)?.cluster ?? 'General',
+    psyAnalysis: career.roles,
+    skillsVerdict: career.verdict,
+  }));
+
+  const pathOptions = Array.from(
+    new Set([
+      resolveCareerTitle(p.favoritePath ?? p.dreamCareer ?? p.careerFocus, p.careerFocus),
+      ...p.topCareers.slice(0, 3).map((career) => resolveCareerTitle(career.title, career.title)),
+    ])
+  );
 
   return (
     <div className="min-h-screen bg-bg">
@@ -76,7 +123,7 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
               <Meta label="Personality Type" value={`${p.mbtiType} — ${p.mbtiAxes.map((a) => a.dominant).join(' · ')}`} />
               <Meta label="Top Interest" value={p.topInterests.slice(0, 2).join(' & ')} />
               <Meta label="Top Motivators" value={p.motivators.slice(0, 3).map((m) => m.label).join(' · ')} />
-              <Meta label="Career Focus" value={p.careerFocus} />
+              <Meta label="Career Focus" value={p.favoritePath ?? p.dreamCareer ?? p.careerFocus} />
             </div>
             <div className="sm:border-l border-white/10 sm:pl-6">
               <p className="text-white/90 font-bold border-b border-red pb-1 mb-4">Assessment Summary</p>
@@ -175,7 +222,139 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
           </div>
         </Section>
 
-        {/* 9. Gap analysis + next steps */}
+        {/* 9. Cluster table */}
+        <Section title="Career Paths by Cluster">
+          <p className="text-sm text-ink-3 mb-4">Psy. analysis and skills verdicts are auto-calculated from your answers, then grouped by the strongest career clusters.</p>
+          <div className="overflow-hidden rounded-xl border border-line">
+            <div className="grid grid-cols-[1.2fr_1fr_1.4fr_0.8fr] gap-3 bg-bg px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-ink-3">
+              <span>Career</span><span>Cluster</span><span>Psy. Analysis</span><span>Skills</span>
+            </div>
+            <div className="divide-y divide-line">
+              {topCareerRows.map((career) => (
+                <div key={career.title} className="grid grid-cols-[1.2fr_1fr_1.4fr_0.8fr] gap-3 px-4 py-3 items-start">
+                  <div>
+                    <p className="font-bold text-sm text-ink">{career.title}</p>
+                    <p className="text-xs text-ink-4 mt-1">{career.match}% match</p>
+                  </div>
+                  <p className="text-sm text-ink-2">{career.cluster}</p>
+                  <p className="text-xs text-ink-2 leading-relaxed">{career.psyAnalysis}</p>
+                  <span className={`inline-flex justify-center px-2.5 py-1 rounded-full text-xs font-bold ${VERDICT_STYLE[career.skillsVerdict]}`}>{career.skillsVerdict}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Section>
+
+        {/* 10. Career-path deep dive */}
+        <Section title="Chosen Career Path Deep Dive">
+          <p className="text-sm text-ink-3 mb-4">Switch between your strongest paths to see how the work, roadmap and salary profile change.</p>
+          <div className="flex flex-wrap gap-2 mb-5">
+            {pathOptions.map((path) => (
+              <button
+                key={path}
+                onClick={() => setSelectedPath(path)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${selectedPath === path ? 'bg-red text-white border-red' : 'bg-white text-ink-2 border-line hover:border-red-line'}`}
+              >
+                {path}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid md:grid-cols-[1.05fr_0.95fr] gap-6 mb-6">
+            <div className="bg-red-soft border border-red-line rounded-xl p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-red mb-2">Selected path</p>
+              <h3 className="text-2xl font-extrabold text-ink mb-2">{selectedPath}</h3>
+              <p className="text-sm text-ink-2 mb-4">{selectedCareer.cluster}</p>
+              <p className="text-sm text-ink-2 leading-relaxed">{selectedDetail.workNature[0]}</p>
+            </div>
+            <div className="bg-white border border-line rounded-xl p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-ink-4 mb-3">Skills that affect this path</p>
+              <div className="space-y-3">
+                {selectedDetail.skillsThatAffect.slice(0, 4).map((skill) => (
+                  <BarRow key={skill.name} label={skill.name} percent={skill.percent} highlight={skill.percent >= 84} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-6 mb-6">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-ink-4 mb-3">Work nature</p>
+              <div className="space-y-2.5">
+                {selectedDetail.workNature.map((item, i) => (
+                  <div key={i} className="flex gap-2 text-sm text-ink-2">
+                    <span className="text-red">•</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-ink-4 mb-3">Education roadmap</p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-line p-4">
+                  <p className="text-xs font-bold text-red mb-2">Graduation</p>
+                  <ul className="space-y-1 text-sm text-ink-2">
+                    {selectedDetail.roadmap.graduation.map((item) => <li key={item}>• {item}</li>)}
+                  </ul>
+                </div>
+                <div className="rounded-xl border border-line p-4">
+                  <p className="text-xs font-bold text-red mb-2">Post-graduation</p>
+                  <ul className="space-y-1 text-sm text-ink-2">
+                    {selectedDetail.roadmap.postGraduation.map((item) => <li key={item}>• {item}</li>)}
+                  </ul>
+                </div>
+                <div className="rounded-xl border border-line p-4">
+                  <p className="text-xs font-bold text-red mb-2">Certifications</p>
+                  <ul className="space-y-1 text-sm text-ink-2">
+                    {selectedDetail.roadmap.certifications.map((item) => <li key={item}>• {item}</li>)}
+                  </ul>
+                </div>
+                <div className="rounded-xl border border-line p-4">
+                  <p className="text-xs font-bold text-red mb-2">Occupations</p>
+                  <ul className="space-y-1 text-sm text-ink-2">
+                    {selectedDetail.roadmap.occupations.map((item) => <li key={item}>• {item}</li>)}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-6">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-ink-4 mb-3">Salary chart</p>
+              <div className="space-y-3 rounded-xl border border-line p-4">
+                {selectedSalary.map((entry, i) => {
+                  const maxAmount = Math.max(...selectedSalary.map((s) => s.amount), 1);
+                  const width = Math.max(12, Math.round((entry.amount / maxAmount) * 100));
+                  return (
+                    <div key={entry.level} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs text-ink-3">
+                        <span>{entry.level}</span>
+                        <span className="font-bold text-ink">{toLakhs(entry.amount)}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-line-2 overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${width}%`, background: i === 0 ? '#E0242E' : '#6C6E78' }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-ink-4 mb-3">Skills that affect the chosen path</p>
+              <div className="rounded-xl border border-line p-4 space-y-1.5">
+                {selectedDetail.skillsThatAffect.map((skill, i) => (
+                  <BarRow key={skill.name} label={skill.name} percent={skill.percent} highlight={i === 0} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        {/* 11. Gap analysis + next steps */}
         <div className="grid md:grid-cols-2 gap-6">
           <Section title="Gap Analysis">
             <ul className="space-y-2">

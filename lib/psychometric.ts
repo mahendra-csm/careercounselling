@@ -144,6 +144,7 @@ export interface PsychometricProfile {
   kind: 'psychometric';
   name: string;
   dreamCareer?: string;
+  favoritePath?: string;
   generatedAt: string;
   overallScore: number;
   matchLabel: string;
@@ -314,6 +315,7 @@ export function scorePsychometric(answers: AnswerMap, name?: string, dreamCareer
     title: c.title, roles: c.roles, cluster: c.cluster, match: c.match, verdict: verdictFor(c.match),
   }));
   const careerFocus = careerScored[0]?.title ?? 'Explorer';
+  const favoritePath = dreamCareer?.trim() || careerFocus;
 
   // --- overall + label ---
   const overallScore = clamp(
@@ -344,6 +346,7 @@ export function scorePsychometric(answers: AnswerMap, name?: string, dreamCareer
     kind: 'psychometric',
     name: name?.trim() || 'Student',
     dreamCareer: dreamCareer?.trim() || undefined,
+    favoritePath,
     generatedAt: new Date().toISOString(),
     overallScore, matchLabel,
     mbtiType, mbtiAxes, personalityBullets, strengths,

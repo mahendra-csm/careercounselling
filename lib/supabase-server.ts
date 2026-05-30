@@ -1,16 +1,11 @@
-import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import {
   ensureLocalSeedData,
-  isLocalMode,
   parseLocalSession,
   selectLocalRows,
   insertLocalRow,
   updateLocalRows,
 } from '@/lib/local-db';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 function createLocalServerClient() {
   const cookieStore = cookies();
@@ -111,49 +106,9 @@ function createLocalServerClient() {
 }
 
 export function createSupabaseServerClient() {
-  if (isLocalMode()) {
-    return createLocalServerClient();
-  }
-
-  const cookieStore = cookies();
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
-        } catch {
-          // Called from Server Component — ignore
-        }
-      },
-    },
-  });
+  return createLocalServerClient();
 }
 
 export function createSupabaseServiceClient() {
-  if (isLocalMode()) {
-    return createLocalServerClient();
-  }
-
-  const cookieStore = cookies();
-  return createServerClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY ?? supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
-        } catch {
-          // ignore
-        }
-      },
-    },
-  });
+  return createLocalServerClient();
 }

@@ -77,8 +77,7 @@ function defaultNameFromEmail(email: string) {
 }
 
 export function isLocalMode() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  return !/^https?:\/\//i.test(url);
+  return true;
 }
 
 export function createLocalUser(email: string, name?: string): LocalSessionUser {
@@ -309,6 +308,7 @@ export function buildLocalDemoReport(
     assessmentId,
     generatedAt,
     shareToken,
+    favoritePath: answers.targetRole,
     overallScore: score,
     matchLabel: score >= 85 ? 'Excellent fit' : score >= 70 ? 'Ready to Explore' : score >= 55 ? 'Developing' : 'Getting Started',
     executiveSummary: `${answers.name || 'Student'} shows ${strengths.slice(0, 3).join(', ')} as strengths. Based on the answers provided, the top suggested study directions are ${topCareerChoices.map((c) => c.title).join(', ')}. Focus on small, regular steps to build the identified improvement areas.`,

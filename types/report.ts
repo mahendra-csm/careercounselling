@@ -102,6 +102,7 @@ export interface Report {
   assessmentId: string;
   generatedAt: string;
   shareToken: string;
+  favoritePath?: string;
 
   overallScore: number;
   matchLabel: string;
