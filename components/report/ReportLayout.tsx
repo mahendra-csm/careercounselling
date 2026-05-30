@@ -194,7 +194,7 @@ export default function ReportLayout({ reportId, shareToken }: Props) {
                 </div>
                 <div>
                   <h1 className="font-extrabold text-xl text-ink">{report.userName}</h1>
-                  <p className="text-sm text-ink-3">Career Intelligence Report</p>
+                  <p className="text-sm text-ink-3">Student Growth Report</p>
                 </div>
               </div>
               <p className="text-xs text-ink-4 mt-2">

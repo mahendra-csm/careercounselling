@@ -16,10 +16,12 @@ function MatchBadge({ pct }: { pct: number }) {
 }
 
 export default function JobMatchesSection({ report }: Props) {
-  if (!report.jobMatches?.length) {
+  const choices = report.topCareerChoices?.length ? report.topCareerChoices : report.jobMatches;
+
+  if (!choices?.length) {
     return (
       <div className="bg-white rounded-2xl border border-line shadow-sm p-6">
-        <p className="text-ink-3 text-sm">Job matches not available.</p>
+        <p className="text-ink-3 text-sm">Pathways not available.</p>
       </div>
     );
   }
@@ -33,11 +35,11 @@ export default function JobMatchesSection({ report }: Props) {
     >
       <div className="flex items-center gap-2 mb-5">
         <div className="w-1 h-6 bg-red rounded-full" />
-        <h2 className="text-lg font-extrabold text-ink">Top Job Matches</h2>
+        <h2 className="text-lg font-extrabold text-ink">Recommended Pathways</h2>
       </div>
 
       <div className="space-y-4">
-        {report.jobMatches.map((job, i) => (
+        {choices.slice(0, 3).map((job: any, i) => (
           <motion.div
             key={i}
             initial={{ opacity: 0, x: -8 }}
@@ -49,38 +51,40 @@ export default function JobMatchesSection({ report }: Props) {
             <div className="flex items-start gap-3 mb-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0"
                 style={{ background: `hsl(${(i * 60) % 360}, 60%, 45%)` }}>
-                {job.company[0]}
+                {job.title[0]}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-0.5">
                   <h3 className="font-bold text-ink text-sm">{job.title}</h3>
-                  <MatchBadge pct={job.matchPercent} />
+                  <MatchBadge pct={job.matchPercent ?? 0} />
                 </div>
-                <p className="text-ink-3 text-xs">{job.company} · {job.companyType}</p>
+                <p className="text-ink-3 text-xs">{job.company || 'Career fit'} · {job.companyType || 'guided'}</p>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="flex items-center gap-1 text-xs text-ink-4">
-                    <MapPin className="w-3 h-3" />{job.location}
+                    <MapPin className="w-3 h-3" />{job.location || 'School / home'}
                   </span>
                   <span className="flex items-center gap-1 text-xs text-ink-4">
                     <DollarSign className="w-3 h-3" />
-                    ${Math.round(job.salaryMin / 1000)}k – ${Math.round(job.salaryMax / 1000)}k
+                    {job.salaryMin != null && job.salaryMax != null ? `${Math.round(job.salaryMin)}–${Math.round(job.salaryMax)}` : 'Suggested path'}
                   </span>
                 </div>
               </div>
             </div>
 
+            {job.matchedSkills?.length ? (
             <div className="flex flex-wrap gap-1.5 mb-3">
-              {job.matchedSkills?.map((s) => (
+              {job.matchedSkills?.map((s: string) => (
                 <span key={s} className="px-2 py-0.5 bg-green-50 text-success border border-green-200 rounded-full text-xs font-medium">
                   {s}
                 </span>
               ))}
-              {job.gapSkills?.map((s) => (
+              {job.gapSkills?.map((s: string) => (
                 <span key={s} className="px-2 py-0.5 bg-red-soft text-red border border-red-line rounded-full text-xs font-medium">
                   {s}
                 </span>
               ))}
             </div>
+            ) : null}
 
             {job.whyGoodFit && (
               <p className="text-xs text-ink-3 leading-relaxed mb-3">{job.whyGoodFit}</p>

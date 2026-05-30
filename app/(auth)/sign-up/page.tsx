@@ -7,8 +7,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
-import { Zap, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { signUp } from '@/lib/firebase';
+import Logo from '@/components/brand/Logo';
 
 const schema = z.object({
   name: z.string().min(2, 'Tell us your name (at least 2 chars)'),
@@ -33,24 +34,13 @@ export default function SignUpPage() {
 
   const onSubmit = async (data: FormData) => {
     setError('');
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.signUp({
-      email: data.email,
-      password: data.password,
-      options: {
-        data: { full_name: data.name },
-      },
-    });
-    if (authError) {
-      if (authError.message.includes('already registered')) {
-        setError('That email is already taken — try signing in instead?');
-      } else {
-        setError(authError.message);
-      }
-      return;
+    try {
+      await signUp(data.email, data.password, data.name);
+      router.push('/dashboard');
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create your account. Please try again.');
     }
-    router.push('/dashboard');
-    router.refresh();
   };
 
   return (
@@ -62,13 +52,8 @@ export default function SignUpPage() {
         className="w-full max-w-md"
       >
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <div className="w-9 h-9 bg-red rounded-xl flex items-center justify-center shadow-glow">
-              <Zap className="w-5 h-5 text-white fill-white" />
-            </div>
-            <span className="font-bold text-2xl text-ink">
-              One<span className="text-red">Grasp</span>
-            </span>
+          <Link href="/" className="inline-flex items-center mb-6">
+            <Logo size={38} />
           </Link>
           <h1 className="text-2xl font-extrabold text-ink mb-1">Create your account</h1>
           <p className="text-ink-3 text-sm">This takes 30 seconds. Your analysis starts right after.</p>

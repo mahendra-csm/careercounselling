@@ -1,5 +1,6 @@
 import type { AssessmentAnswers } from '@/types/assessment';
 import type { Report } from '@/types/report';
+import { buildLocalDemoReport, isLocalMode } from '@/lib/local-db';
 import {
   generateExecutiveSummary,
   generateSkillAnalysis,
@@ -22,14 +23,20 @@ export async function generateFullReport(
   assessmentId: string,
   onProgress?: (event: ProgressEvent) => void
 ): Promise<Report> {
-  onProgress?.({ step: 'profile', progress: 10, message: 'Analyzing your profile...' });
+  if (isLocalMode()) {
+    onProgress?.({ step: 'profile', progress: 10, message: 'Preparing your student report...' });
+    onProgress?.({ step: 'complete', progress: 100, message: 'Report ready!' });
+    return buildLocalDemoReport(answers, userId, assessmentId);
+  }
+
+  onProgress?.({ step: 'profile', progress: 10, message: 'Reviewing your answers...' });
 
   const [summaryResult, skillsResult] = await Promise.allSettled([
     generateExecutiveSummary(answers),
     generateSkillAnalysis(answers),
   ]);
 
-  onProgress?.({ step: 'skills', progress: 40, message: 'Mapping skill gaps...' });
+  onProgress?.({ step: 'skills', progress: 40, message: 'Mapping strengths and improvement areas...' });
 
   const topGaps =
     skillsResult.status === 'fulfilled'
@@ -45,8 +52,8 @@ export async function generateFullReport(
     generateInterviewQuestions(answers),
   ]);
 
-  onProgress?.({ step: 'market', progress: 70, message: 'Scanning 847 live roles...' });
-  onProgress?.({ step: 'roadmap', progress: 85, message: 'Building your 90-day plan...' });
+  onProgress?.({ step: 'market', progress: 70, message: 'Comparing your path to career options...' });
+  onProgress?.({ step: 'roadmap', progress: 85, message: 'Building your next-step plan...' });
 
   const summary =
     summaryResult.status === 'fulfilled'

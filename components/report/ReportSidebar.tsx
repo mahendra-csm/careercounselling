@@ -5,12 +5,12 @@ import { BarChart3, Briefcase, Map, MessageSquare, Users, Brain, TrendingUp } fr
 const SECTIONS = [
   { id: 'summary', label: 'Summary', icon: BarChart3 },
   { id: 'skills', label: 'Skill Snapshot', icon: BarChart3 },
-  { id: 'opportunity', label: 'Opportunity', icon: TrendingUp },
-  { id: 'jobs', label: 'Job Matches', icon: Briefcase },
-  { id: 'roadmap', label: 'Roadmap', icon: Map },
-  { id: 'competitive', label: 'Competitive', icon: Users },
-  { id: 'interview', label: 'Interview Prep', icon: MessageSquare },
-  { id: 'personality', label: 'Insights', icon: Brain },
+  { id: 'opportunity', label: 'Readiness', icon: TrendingUp },
+  { id: 'jobs', label: 'Pathways', icon: Briefcase },
+  { id: 'roadmap', label: 'Study Plan', icon: Map },
+  { id: 'competitive', label: 'Edge', icon: Users },
+  { id: 'interview', label: 'Guidance Questions', icon: MessageSquare },
+  { id: 'personality', label: 'Learning Style', icon: Brain },
 ];
 
 interface Props {

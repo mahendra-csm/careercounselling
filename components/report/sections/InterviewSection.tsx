@@ -42,7 +42,7 @@ export default function InterviewSection({ report }: Props) {
     >
       <div className="flex items-center gap-2 mb-5">
         <div className="w-1 h-6 bg-red rounded-full" />
-        <h2 className="text-lg font-extrabold text-ink">Interview Preparation</h2>
+        <h2 className="text-lg font-extrabold text-ink">Guidance Questions</h2>
       </div>
 
       {/* Tabs */}

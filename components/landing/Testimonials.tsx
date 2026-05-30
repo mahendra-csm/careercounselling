@@ -5,27 +5,27 @@ import { Star, Quote } from 'lucide-react';
 
 const TESTIMONIALS = [
   {
-    name: 'Sarah Chen',
-    title: 'Senior PM at Stripe',
-    prev: 'was an Engineering Manager',
+    name: 'Ananya',
+    title: 'Class 10 student',
+    prev: 'was unsure about her stream',
     avatar: 'https://i.pravatar.cc/56?img=47',
-    text: "OneGrasp told me exactly what PM skills I was missing after 6 years in engineering. The 90-day roadmap was so specific I almost thought they'd interviewed my hiring manager.",
+    text: 'OneGrasp helped me understand my strengths and made choosing my next stream feel much less confusing.',
     score: 94,
   },
   {
-    name: 'Marcus Williams',
-    title: 'Data Scientist at Spotify',
-    prev: 'was a Business Analyst',
+    name: 'Rahul',
+    title: 'Class 8 student',
+    prev: 'was unsure about career options',
     avatar: 'https://i.pravatar.cc/56?img=12',
-    text: "I'd been applying to data science roles for 4 months with zero callbacks. OneGrasp showed me I was missing 3 critical skills. I learned them, updated my resume, and landed 2 offers in 6 weeks.",
+    text: 'It showed me what I am good at and what I should work on this year. The study plan is actually easy to follow.',
     score: 88,
   },
   {
-    name: 'Priya Nair',
-    title: 'Head of Design at Notion',
-    prev: 'was a UX Designer',
+    name: 'Meera',
+    title: 'Class 12 student',
+    prev: 'was preparing for board exams',
     avatar: 'https://i.pravatar.cc/56?img=25',
-    text: "The competitive analysis section was a wake-up call. I thought I was ready for leadership. Turns out I had real blind spots. Fixing them changed how I showed up in interviews entirely.",
+    text: 'The report gave me a clear picture of where I stand and helped me focus on the subjects that matter most.',
     score: 91,
   },
 ];
@@ -37,10 +37,10 @@ export default function Testimonials() {
         <div className="text-center mb-16">
           <p className="text-sm font-semibold text-red uppercase tracking-widest mb-3">Results</p>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-ink mb-4">
-            Real people. Real career moves.
+            Real students. Real growth.
           </h2>
           <p className="text-lg text-ink-3 max-w-lg mx-auto">
-            This takes 5 minutes. Most people find it surprisingly honest.
+            This takes 5 minutes. Most students find it surprisingly honest.
           </p>
         </div>
 

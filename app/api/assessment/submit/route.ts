@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        send({ step: 'profile', progress: 15, message: 'Analyzing your profile...' });
+        send({ step: 'profile', progress: 15, message: 'Reviewing your answers...' });
 
         const report = await generateFullReport(
           answers,
@@ -99,6 +99,12 @@ export async function POST(req: NextRequest) {
         }
 
         // Update profile
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('assessments_completed')
+          .eq('id', user.id)
+          .maybeSingle();
+
         await supabase
           .from('profiles')
           .update({
@@ -106,7 +112,8 @@ export async function POST(req: NextRequest) {
             industry: answers.industry,
             years_experience: answers.yearsExperience,
             last_report_id: savedReport.id,
-            assessments_completed: supabase.rpc('increment', { row_id: user.id }),
+            assessments_completed: Number((existingProfile as { assessments_completed?: number } | null)?.assessments_completed ?? 0) + 1,
+            updated_at: new Date().toISOString(),
           })
           .eq('id', user.id);
 

@@ -40,7 +40,7 @@ export default function OpportunitySection({ report }: Props) {
     >
       <div className="flex items-center gap-2 mb-5">
         <div className="w-1 h-6 bg-red rounded-full" />
-        <h2 className="text-lg font-extrabold text-ink">Opportunity Score</h2>
+        <h2 className="text-lg font-extrabold text-ink">Readiness Score</h2>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-6 mb-6">
@@ -64,14 +64,14 @@ export default function OpportunitySection({ report }: Props) {
               <span className="text-xs text-ink-4">/ 100</span>
             </div>
           </div>
-          <p className="text-sm font-semibold text-ink mt-2">Overall Opportunity</p>
+          <p className="text-sm font-semibold text-ink mt-2">Overall Readiness</p>
         </div>
 
         {/* Sub scores */}
         <div className="flex flex-col justify-center">
-          <ScoreBar label="Market Demand" value={opp.marketDemand} color="#E0242E" />
-          <ScoreBar label="Skill Fit" value={opp.skillFit} color="#C9820B" />
-          <ScoreBar label="Growth Potential" value={opp.growthPotential} color="#1F9254" />
+          <ScoreBar label="Academic momentum" value={opp.marketDemand} color="#E0242E" />
+          <ScoreBar label="Strength match" value={opp.skillFit} color="#C9820B" />
+          <ScoreBar label="Future growth" value={opp.growthPotential} color="#1F9254" />
         </div>
       </div>
 
@@ -81,18 +81,18 @@ export default function OpportunitySection({ report }: Props) {
         </p>
       )}
 
-      {/* Salary benchmark */}
+      {/* Focus benchmark */}
       <div className="grid grid-cols-3 gap-3">
         <div className="text-center bg-line-2 rounded-xl p-3">
-          <p className="text-xs text-ink-4 mb-1">Market min</p>
+          <p className="text-xs text-ink-4 mb-1">Study min</p>
           <p className="text-lg font-extrabold text-ink">{fmt(opp.salaryBenchmark.min)}</p>
         </div>
         <div className="text-center bg-red-soft border border-red-line rounded-xl p-3">
-          <p className="text-xs text-red mb-1">Market median</p>
+          <p className="text-xs text-red mb-1">Ideal focus</p>
           <p className="text-lg font-extrabold text-red">{fmt(opp.salaryBenchmark.median)}</p>
         </div>
         <div className="text-center bg-line-2 rounded-xl p-3">
-          <p className="text-xs text-ink-4 mb-1">Market max</p>
+          <p className="text-xs text-ink-4 mb-1">Study max</p>
           <p className="text-lg font-extrabold text-ink">{fmt(opp.salaryBenchmark.max)}</p>
         </div>
       </div>

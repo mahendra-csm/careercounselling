@@ -5,45 +5,45 @@ export interface SkillCategory {
 
 export const SKILL_CATEGORIES: SkillCategory[] = [
   {
-    name: 'Engineering',
-    skills: ['React', 'Python', 'SQL', 'TypeScript', 'Node.js', 'AWS', 'Java', 'Go', 'Docker', 'Kubernetes'],
+    name: 'Academics',
+    skills: ['Mathematics', 'Science', 'English', 'Social Studies', 'Hindi', 'Computer Basics', 'Environmental Studies'],
   },
   {
-    name: 'Business',
-    skills: ['Product Strategy', 'Data Analysis', 'Excel', 'Salesforce', 'Business Development', 'Operations', 'Finance'],
+    name: 'Study Skills',
+    skills: ['Time Management', 'Note Taking', 'Exam Practice', 'Reading', 'Memory', 'Research', 'Homework Planning'],
   },
   {
-    name: 'Design',
-    skills: ['Figma', 'UX Research', 'Prototyping', 'User Testing', 'Sketch', 'Adobe XD'],
+    name: 'Creativity',
+    skills: ['Drawing', 'Writing', 'Music', 'Craft', 'Presentation', 'Storytelling'],
   },
   {
-    name: 'Soft Skills',
-    skills: ['Leadership', 'Communication', 'Project Management', 'Negotiation', 'Mentoring', 'Public Speaking'],
+    name: 'Life Skills',
+    skills: ['Communication', 'Teamwork', 'Leadership', 'Problem Solving', 'Confidence', 'Curiosity'],
   },
   {
-    name: 'Data & AI',
-    skills: ['Machine Learning', 'Tableau', 'Power BI', 'Statistics', 'Deep Learning', 'NLP', 'Data Science'],
+    name: 'Technology',
+    skills: ['Typing', 'Coding Basics', 'Scratch', 'Excel', 'Slides', 'Digital Tools', 'Internet Research'],
   },
   {
-    name: 'Marketing',
-    skills: ['SEO', 'Content Strategy', 'Paid Ads', 'Analytics', 'Brand Strategy', 'Email Marketing'],
+    name: 'Activities',
+    skills: ['Sports', 'Debate', 'Quiz', 'Science Projects', 'Public Speaking', 'Volunteering'],
   },
 ];
 
 export const ALL_SKILLS = SKILL_CATEGORIES.flatMap((cat) => cat.skills);
 
 export const INDUSTRIES = [
-  { value: 'Tech', label: 'Technology', icon: '💻' },
-  { value: 'Finance', label: 'Finance', icon: '📈' },
-  { value: 'Healthcare', label: 'Healthcare', icon: '🏥' },
-  { value: 'Marketing', label: 'Marketing', icon: '📣' },
-  { value: 'Design', label: 'Design', icon: '🎨' },
-  { value: 'Other', label: 'Other', icon: '🌐' },
+  { value: 'CBSE', label: 'CBSE', icon: '📘' },
+  { value: 'ICSE', label: 'ICSE', icon: '📗' },
+  { value: 'State Board', label: 'State Board', icon: '📙' },
+  { value: 'IB', label: 'IB', icon: '🌍' },
+  { value: 'IGCSE', label: 'IGCSE', icon: '📕' },
+  { value: 'Other', label: 'Other', icon: '🎓' },
 ];
 
 export const COMPANY_TYPES = [
-  { value: 'Startup', label: 'Startup', desc: '< 50 people, fast-moving' },
-  { value: 'Scale-up', label: 'Scale-up', desc: '50–500 people, growing' },
-  { value: 'Enterprise', label: 'Enterprise', desc: '500+ people, structured' },
-  { value: 'FAANG', label: 'FAANG/Big Tech', desc: 'Top-tier tech giants' },
+  { value: 'Guided', label: 'Teacher-guided', desc: 'I like clear steps and support' },
+  { value: 'Balanced', label: 'Balanced', desc: 'A mix of guidance and independence' },
+  { value: 'Independent', label: 'Independent', desc: 'I like learning on my own' },
+  { value: 'Project-based', label: 'Project-based', desc: 'I learn best by doing activities' },
 ];

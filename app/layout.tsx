@@ -11,12 +11,12 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: 'OneGrasp — AI Career Intelligence Platform',
+  title: 'OneGrasp — Student Growth Platform',
   description:
-    'Get your personalized AI-powered career analysis in 5 minutes. Discover skill gaps, top job matches, and a 90-day action plan tailored to you.',
+    'Get a personalized student guidance report in minutes. Discover strengths, learning style, future pathways, and a simple action plan tailored to class 6-12 students.',
   openGraph: {
-    title: 'OneGrasp — AI Career Intelligence',
-    description: 'Your personalized career roadmap, built by AI.',
+    title: 'OneGrasp — Student Growth Platform',
+    description: 'Your personalized school-to-future roadmap, created with care and expert guidance.',
     images: [{ url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=1200&q=80' }],
   },
   twitter: {

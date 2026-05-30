@@ -1,13 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AssessmentAnswers } from '@/types/assessment';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
+const anthropic = process.env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  : null;
 
 const MODEL = 'claude-sonnet-4-20250514';
 
 async function callClaude(systemPrompt: string, userPrompt: string, retries = 1): Promise<string> {
+  if (!anthropic) {
+    throw new Error('Anthropic API key is not configured.');
+  }
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const message = await anthropic.messages.create({

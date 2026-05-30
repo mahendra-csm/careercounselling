@@ -5,20 +5,20 @@ import { motion } from 'framer-motion';
 const STEPS = [
   {
     number: '01',
-    title: 'Answer 5 quick questions',
-    body: 'Tell us your current role, target role, skills, and goals. Takes less than 5 minutes — and it powers everything.',
+    title: 'Answer 15 simple questions',
+    body: 'Tell us what you enjoy, what feels hard, what you are good at, and what you want to become.',
     image: 'https://images.unsplash.com/photo-1553484771-047a44eee27a?w=700&q=80',
   },
   {
     number: '02',
-    title: 'Claude AI analyzes your profile',
-    body: 'Our AI runs 5 parallel analyses — skills, market fit, job matches, roadmap, and interview prep — all personalized to your exact answers.',
+    title: 'Experts shape your profile',
+    body: 'The questions were prepared by career guidance specialists and student mentors, then mapped into strengths, weaknesses, interests, and future paths.',
     image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=700&q=80',
   },
   {
     number: '03',
-    title: 'Get your 10-page career report',
-    body: 'Download a beautiful, professional PDF with your complete career intelligence. Share it, use it, or email it to yourself.',
+    title: 'See the top 3 career choices',
+    body: 'Get a clear report with the best-fit career choices, improvement areas, and a simple next-step plan.',
     image: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=700&q=80',
   },
 ];
@@ -30,10 +30,10 @@ export default function HowItWorks() {
         <div className="text-center mb-16">
           <p className="text-sm font-semibold text-red uppercase tracking-widest mb-3">How it works</p>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-ink mb-4">
-            From answers to insight in 60 seconds
+            From answers to a clear future direction
           </h2>
           <p className="text-lg text-ink-3 max-w-xl mx-auto">
-            Most people find it surprisingly honest. The AI doesn&apos;t flatter — it shows you exactly where to focus.
+            A simple assessment can reveal what a student is naturally good at, where support is needed, and which careers fit best.
           </p>
         </div>
 

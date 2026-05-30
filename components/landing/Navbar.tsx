@@ -1,41 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Zap } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
+import Logo from '@/components/brand/Logo';
 
 const NAV_LINKS = [
   { label: 'How it works', href: '#how-it-works' },
   { label: 'Features', href: '#features' },
-  { label: 'Pricing', href: '#pricing' },
+  { label: 'Assessment', href: '/assessment' },
+  { label: 'Career Planner', href: '/dashboard' },
 ];
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled ? 'bg-white/95 backdrop-blur-sm shadow-sm border-b border-line' : 'bg-transparent'
-      }`}
-    >
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white shadow-sm border-b border-line">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 bg-red rounded-lg flex items-center justify-center shadow-glow group-hover:shadow-glow-lg transition-shadow">
-              <Zap className="w-4 h-4 text-white fill-white" />
-            </div>
-            <span className="font-bold text-xl text-ink tracking-tight">
-              One<span className="text-red">Grasp</span>
-            </span>
+          <Link href="/" className="flex items-center group">
+            <Logo size={34} />
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
@@ -61,7 +47,7 @@ export default function Navbar() {
               href="/sign-up"
               className="text-sm font-semibold bg-red text-white px-5 py-2.5 rounded-lg hover:bg-red-dark transition-all shadow-glow hover:shadow-glow-lg active:scale-95"
             >
-              Get started free →
+              Get started →
             </Link>
           </div>
 
@@ -99,9 +85,9 @@ export default function Navbar() {
               </Link>
               <Link
                 href="/sign-up"
-                className="text-sm font-semibold bg-red text-white text-center px-5 py-3 rounded-lg"
+                className="text-sm font-semibold bg-red text-white text-center px-5 py-3.5 rounded-lg"
               >
-                Get started free →
+                Get started →
               </Link>
             </div>
           </motion.div>

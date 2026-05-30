@@ -6,21 +6,21 @@ import { BarChart3, Map, Briefcase, MessageSquare, TrendingUp, FileDown } from '
 const FEATURES = [
   {
     icon: BarChart3,
-    title: 'Skill gap radar chart',
-    body: 'A 6-dimension radar map showing exactly how you compare to the target role benchmark. No guessing — pure data.',
+    title: 'Strength radar chart',
+    body: 'A 6-dimension radar map showing exactly how you compare across subjects, habits, and confidence. No guessing — just clarity.',
     image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=700&q=80',
     imageLeft: false,
   },
   {
     icon: Briefcase,
-    title: 'Top 5 matched jobs',
-    body: 'Real companies, real roles, real salary data — matched to your actual skills and target. Not generic job board noise.',
+    title: 'Top 5 future pathways',
+    body: 'Real streams and career directions matched to your strengths and interests. Not generic advice.',
     image: 'https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=700&q=80',
     imageLeft: true,
   },
   {
     icon: Map,
-    title: '90-day action roadmap',
+    title: '90-day study roadmap',
     body: 'Three phases. Clear tasks. Specific resources. Check things off as you go. It\'s a plan, not a wall of text.',
     image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=700&q=80',
     imageLeft: false,
@@ -28,9 +28,9 @@ const FEATURES = [
 ];
 
 const MINI_FEATURES = [
-  { icon: MessageSquare, title: 'Interview prep', body: '8 custom questions with STAR-framed sample answers.' },
-  { icon: TrendingUp, title: 'Market intelligence', body: 'Salary benchmarks and competitive ranking.' },
-  { icon: FileDown, title: 'PDF download', body: 'Professional 10-page report, ready to share.' },
+  { icon: MessageSquare, title: 'Guidance questions', body: '8 custom questions with student-friendly sample answers.' },
+  { icon: TrendingUp, title: 'Readiness insights', body: 'Focus benchmarks and growth ranking.' },
+  { icon: FileDown, title: 'PDF download', body: 'Beautiful report, ready to share or print.' },
 ];
 
 export default function Features() {
@@ -40,7 +40,7 @@ export default function Features() {
         <div className="text-center mb-16">
           <p className="text-sm font-semibold text-red uppercase tracking-widest mb-3">Features</p>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-ink mb-4">
-            Everything your career needs. Nothing it doesn&apos;t.
+            Everything a student needs. Nothing extra.
           </h2>
         </div>
 

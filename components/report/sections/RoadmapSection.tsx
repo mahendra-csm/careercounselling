@@ -26,7 +26,7 @@ export default function RoadmapSection({ report, onTaskToggle }: Props) {
   if (!report.roadmap?.length) {
     return (
       <div className="bg-white rounded-2xl border border-line shadow-sm p-6">
-        <p className="text-ink-3 text-sm">Roadmap not available.</p>
+        <p className="text-ink-3 text-sm">Study plan not available.</p>
       </div>
     );
   }
@@ -44,7 +44,7 @@ export default function RoadmapSection({ report, onTaskToggle }: Props) {
     >
       <div className="flex items-center gap-2 mb-2">
         <div className="w-1 h-6 bg-red rounded-full" />
-        <h2 className="text-lg font-extrabold text-ink">90-Day Action Roadmap</h2>
+        <h2 className="text-lg font-extrabold text-ink">90-Day Study Roadmap</h2>
       </div>
 
       {/* Overall progress */}

@@ -4,23 +4,32 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import {
-  Zap,
   LayoutDashboard,
-  ClipboardList,
+  Search,
+  Building2,
+  Globe2,
+  Plane,
   FileText,
+  Library,
+  Rocket,
   Settings,
   LogOut,
   Menu,
-  X,
   ChevronRight,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase';
+import { signOut } from '@/lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
+import Logo from '@/components/brand/Logo';
 
 const NAV = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/assessment', icon: ClipboardList, label: 'Assessment' },
-  { href: '/report', icon: FileText, label: 'My Report' },
+  { href: '/dashboard/career-analysis', icon: Search, label: 'Career Analysis' },
+  { href: '/dashboard/india-colleges', icon: Building2, label: 'India Colleges' },
+  { href: '/dashboard/abroad-colleges', icon: Globe2, label: 'Abroad Colleges' },
+  { href: '/dashboard/abroad-applications', icon: Plane, label: 'Abroad Applications' },
+  { href: '/dashboard/exams', icon: FileText, label: 'Exams' },
+  { href: '/dashboard/career-library', icon: Library, label: 'Career Library' },
+  { href: '/dashboard/career-boosters', icon: Rocket, label: 'Career Boosters' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
 
@@ -30,28 +39,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    signOut();
     router.push('/');
     router.refresh();
   };
 
+  const isActive = (href: string) =>
+    href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
+
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       <div className="px-5 py-5 border-b border-line">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-red rounded-lg flex items-center justify-center shadow-glow">
-            <Zap className="w-4 h-4 text-white fill-white" />
-          </div>
-          <span className="font-bold text-lg text-ink">
-            One<span className="text-red">Grasp</span>
-          </span>
+        <Link href="/" className="flex items-center">
+          <Logo size={30} />
         </Link>
       </div>
 
-      <nav className="flex-1 px-3 py-5 space-y-1">
+      <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto scrollbar-thin">
         {NAV.map(({ href, icon: Icon, label }) => {
-          const active = pathname.startsWith(href);
+          const active = isActive(href);
           return (
             <Link
               key={href}
@@ -124,14 +130,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-red rounded-lg flex items-center justify-center">
-              <Zap className="w-3.5 h-3.5 text-white fill-white" />
-            </div>
-            <span className="font-bold text-base text-ink">
-              One<span className="text-red">Grasp</span>
-            </span>
-          </div>
+          <Logo size={26} />
         </header>
 
         <motion.main

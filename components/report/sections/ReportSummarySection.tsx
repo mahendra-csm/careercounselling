@@ -17,7 +17,7 @@ export default function ReportSummarySection({ report }: Props) {
     >
       <div className="flex items-center gap-2 mb-5">
         <div className="w-1 h-6 bg-red rounded-full" />
-        <h2 className="text-lg font-extrabold text-ink">Executive Summary</h2>
+        <h2 className="text-lg font-extrabold text-ink">Student Summary</h2>
       </div>
 
       <div className="space-y-4 mb-6">
@@ -26,7 +26,7 @@ export default function ReportSummarySection({ report }: Props) {
             <p key={i} className="text-ink-2 leading-relaxed text-sm">{para}</p>
           ))
         ) : (
-          <p className="text-ink-3 text-sm">Analysis summary loading...</p>
+          <p className="text-ink-3 text-sm">Summary loading...</p>
         )}
       </div>
 
@@ -40,7 +40,7 @@ export default function ReportSummarySection({ report }: Props) {
           </li>
           <li className="flex items-start gap-2 text-sm text-ink-2">
             <span className="w-1.5 h-1.5 bg-red rounded-full mt-2 shrink-0" />
-            Targeting <span className="font-bold text-ink mx-1">{report.targetRole}</span> at {report.companyType} companies
+            Exploring <span className="font-bold text-ink mx-1">{report.targetRole}</span> with a {report.companyType} learning style
           </li>
           <li className="flex items-start gap-2 text-sm text-ink-2">
             <span className="w-1.5 h-1.5 bg-red rounded-full mt-2 shrink-0" />
@@ -48,6 +48,22 @@ export default function ReportSummarySection({ report }: Props) {
           </li>
         </ul>
       </div>
+
+      {report.topCareerChoices?.length ? (
+        <div className="mt-4 bg-white border border-line-2 rounded-xl p-4">
+          <p className="text-xs font-bold text-ink-4 uppercase tracking-wider mb-3">Top 3 career choices</p>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {report.topCareerChoices.slice(0, 3).map((career, i) => (
+              <div key={career.title} className="rounded-xl border border-line p-3">
+                <p className="text-xs text-ink-4 mb-1">#{i + 1}</p>
+                <h3 className="font-bold text-ink text-sm">{career.title}</h3>
+                <p className="text-xs text-ink-3 mt-1">{career.reason}</p>
+                <p className="text-xs font-semibold text-red mt-2">{career.matchPercent}% match</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </motion.div>
   );
 }

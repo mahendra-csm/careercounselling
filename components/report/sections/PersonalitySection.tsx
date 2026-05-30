@@ -7,7 +7,7 @@ import type { Report } from '@/types/report';
 interface Props { report: Report }
 
 const CARDS = [
-  { key: 'workStyle', label: 'Work Style', icon: Zap, color: 'text-red', bg: 'bg-red-soft' },
+  { key: 'workStyle', label: 'Learning Style', icon: Zap, color: 'text-red', bg: 'bg-red-soft' },
   { key: 'strengthsNarrative', label: 'Your Strengths', icon: Star, color: 'text-success', bg: 'bg-green-50' },
   { key: 'blindSpots', label: 'Blind Spots', icon: AlertTriangle, color: 'text-warning', bg: 'bg-yellow-50' },
   { key: 'teamFitNote', label: 'Team Fit', icon: Users, color: 'text-blue-500', bg: 'bg-blue-50' },
@@ -46,7 +46,7 @@ export default function PersonalitySection({ report }: Props) {
               <h3 className="font-bold text-sm text-ink">{label}</h3>
             </div>
             <p className="text-sm text-ink-2 leading-relaxed">
-              {insights[key as keyof typeof insights] || 'Analyzing...'}
+              {insights[key as keyof typeof insights] || 'Preparing...'}
             </p>
           </motion.div>
         ))}

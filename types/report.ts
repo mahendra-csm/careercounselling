@@ -90,6 +90,12 @@ export interface CompetitiveAnalysis {
   differentiationStrategy: string;
 }
 
+export interface CareerChoice {
+  title: string;
+  reason: string;
+  matchPercent: number;
+}
+
 export interface Report {
   id: string;
   userId: string;
@@ -109,6 +115,13 @@ export interface Report {
   interviewQuestions: InterviewQuestion[];
   personalityInsights: PersonalityInsights;
   competitiveAnalysis: CompetitiveAnalysis;
+  topCareerChoices?: CareerChoice[];
+
+  // Convenience fields for quick reports
+  strengths?: string[];
+  abilities?: string[];
+  interests?: string[];
+  improvementAreas?: string[];
 
   // User answers snapshot
   userName: string;

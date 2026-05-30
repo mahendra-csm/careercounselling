@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { isLocalMode } from '@/lib/local-db';
 
 export async function GET(
   req: NextRequest,
@@ -11,18 +12,22 @@ export async function GET(
   } = await supabase.auth.getUser();
 
   const shareToken = req.nextUrl.searchParams.get('token');
+  const localMode = isLocalMode();
 
   let query = supabase.from('reports').select('*').eq('id', params.id);
 
-  if (!user && !shareToken) {
+  if (!user && !shareToken && !localMode) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   if (shareToken) {
+    // Public share link — look up by token regardless of session
     query = supabase.from('reports').select('*').eq('share_token', shareToken);
-  } else {
-    query = query.eq('user_id', user!.id);
+  } else if (user) {
+    // Signed-in user — scope to their own reports
+    query = query.eq('user_id', user.id);
   }
+  // else: local-mode anonymous read by id (demo / quick assessment)
 
   const { data: report, error } = await query.maybeSingle();
 

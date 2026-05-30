@@ -5,22 +5,21 @@ import { motion } from 'framer-motion';
 import { Check, Zap } from 'lucide-react';
 
 const FREE_FEATURES = [
-  '1 full career assessment',
-  'Skill gap radar chart',
-  '5 job match cards',
-  '90-day roadmap (Phase 1)',
+  '1 full student guidance assessment',
+  'Strength radar chart',
+  '5 pathway cards',
+  '90-day study roadmap (Phase 1)',
   'Downloadable PDF report',
 ];
 
 const PRO_FEATURES = [
   'Unlimited assessments',
-  'Full 3-phase roadmap',
-  'Interview prep (8 questions)',
-  'Competitive analysis',
+  'Full 3-phase study roadmap',
+  'Guidance questions (8)',
+  'Growth analysis',
   'Email PDF delivery',
   'Progress tracking',
   'Roadmap calendar export',
-  'Priority AI analysis',
 ];
 
 export default function Pricing() {
@@ -33,7 +32,7 @@ export default function Pricing() {
             Start free. Upgrade when you&apos;re ready.
           </h2>
           <p className="text-lg text-ink-3 max-w-md mx-auto">
-            No credit card required. Most people get everything they need from the free tier.
+            No credit card required. Most students get everything they need from the free tier.
           </p>
         </div>
 
@@ -90,7 +89,7 @@ export default function Pricing() {
               <span className="text-4xl font-extrabold text-white">$19</span>
               <span className="text-ink-4 mb-1">/month</span>
             </div>
-            <p className="text-sm text-ink-3 mb-6">The full career intelligence suite. Cancel anytime.</p>
+            <p className="text-sm text-ink-3 mb-6">The full student guidance suite. Cancel anytime.</p>
 
             <Link
               href="/sign-up"
