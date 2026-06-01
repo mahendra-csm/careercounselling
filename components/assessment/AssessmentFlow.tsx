@@ -87,10 +87,11 @@ export default function AssessmentFlow() {
     : [];
 
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  const isStrongPassword = !password.trim() || (/^(?=.*[A-Z])(?=.*\d).{8,}$/.test(password.trim()));
+  // Password is optional; if provided it must meet Firebase's 6-char minimum.
+  const isValidPassword = !password.trim() || password.trim().length >= 6;
   const canNextMilestone = name.trim().length > 1 && milestone;
   const canNextStage = currentDoing && stage;
-  const canStart = isValidEmail && notRobot && isStrongPassword;
+  const canStart = isValidEmail && notRobot && isValidPassword;
 
   // section boundaries
   const firstIndexOf = useMemo(() => {
@@ -126,7 +127,7 @@ export default function AssessmentFlow() {
             session = await signIn(emailValue, passwordValue);
           } catch (err) {
             const code = (err as { code?: string } | null)?.code;
-            if (code === 'EMAIL_NOT_FOUND' && isStrongPassword) {
+            if (code === 'EMAIL_NOT_FOUND' && isValidPassword) {
               session = await signUp(emailValue, passwordValue, name.trim());
             }
             // Any other auth failure (wrong password, sign-in disabled, etc.)
@@ -360,6 +361,9 @@ export default function AssessmentFlow() {
                       {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                  {!isValidPassword && (
+                    <p className="text-xs text-red mt-1.5">Password must be at least 6 characters — or leave it blank to skip.</p>
+                  )}
                 </div>
               </div>
               <button onClick={() => setNotRobot((v) => !v)}
