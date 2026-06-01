@@ -12,6 +12,7 @@ import {
 import { getSession } from '@/lib/firebase';
 import { getLastReportId, getLocalReport } from '@/lib/report-store';
 import type { PsychometricProfile } from '@/lib/psychometric';
+import AssessmentResults from '@/components/dashboard/AssessmentResults';
 
 const MODULES: { title: string; desc: string; icon: LucideIcon; href: string }[] = [
   { title: 'India Colleges', desc: 'Access 10,000+ Indian colleges and 1.5 Lac+ courses with admission predictions.', icon: Building2, href: '/dashboard/india-colleges' },
@@ -118,6 +119,13 @@ export default function DashboardPage() {
           </div>
         </motion.div>
       </div>
+
+      {/* Mindler-style assessment results — only once a report exists */}
+      {hasReport && report && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-8">
+          <AssessmentResults profile={report} reportHref={reportHref} />
+        </motion.div>
+      )}
 
       {/* Ask anything banner */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}

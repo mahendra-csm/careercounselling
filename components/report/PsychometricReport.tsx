@@ -1,772 +1,1023 @@
 'use client';
 
-/**
- * Mindler-style career report — condensed, highly visual and kid-friendly
- * (readable from class 1 to class 12). Each <Page> is a fixed A4 sheet so
- * printing / saving to PDF yields exactly TOTAL_PAGES pages. Every number is
- * derived from the student's own answers via lib/assessment-engine.ts.
- */
-
+import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Printer, Phone, Mail, LayoutDashboard, Sparkles, CheckCircle2, Target, TrendingUp } from 'lucide-react';
+import {
+  LayoutDashboard, Mail, Phone, Printer,
+  Compass, Palette, Flame, BookOpen, Brain, Calculator,
+  Target, Sparkles, TrendingUp, Lightbulb, Heart, GraduationCap,
+  Search, Layers, Rocket, ClipboardCheck, CheckCircle2, ArrowRight,
+  Wrench, FlaskConical, Users, Briefcase, ClipboardList, Box, Activity,
+  Music, User, Leaf, Hash, MessageSquare, Crown, Scale, Wand2, Cpu,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import Logo from '@/components/brand/Logo';
-import type { PsychometricProfile } from '@/lib/psychometric';
 import { MBTI_DESC } from '@/lib/psychometric';
-import { CAREER_LIBRARY } from '@/constants/catalog';
-import { getCareerDetail, buildSalary } from '@/constants/career-details';
+import type {
+  AnalyticalBreakdown,
+  CareerFit,
+  DomainFitment,
+  PsychometricProfile,
+  SectionScore,
+} from '@/lib/psychometric';
 
-const TOTAL_PAGES = 14;
+const TOTAL_PAGES = 15;
 
-/* ----------------------------- palette ----------------------------- */
-/* Pleasant, friendly per-dimension colours. */
+/* Mindler-style SaaS-clean palette. */
 const C = {
-  personality: '#8B5CF6', // violet
-  interest: '#F59E0B',    // amber
-  intelligence: '#EC4899',// pink
-  skill: '#10B981',       // emerald
-  motivator: '#3B82F6',   // blue
-  learning: '#06B6D4',    // cyan
-  eq: '#22C55E',          // green
-  cluster: '#6366F1',     // indigo
-  ink: '#1F2430',
+  ink: '#16243B',
+  body: '#3A4A61',
+  muted: '#6F7E94',
+  line: '#E4EAF3',
+  faint: '#F5F8FC',
+  page: '#E8EDF4',
+  blue: '#2D7FF0',
+  navy: '#16314C',
+  yellow: '#F2C94C',
+  green: '#27AE60',
+  red: '#EB5757',
 };
-const RED = '#E0242E';
-const PALETTE = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#6366F1', '#22C55E'];
-const ZONE = { low: '#FDECEA', med: '#FEF6E0', high: '#E9F7EF' };
 
-/* emoji icons (kid-friendly, print well) */
-const MBTI_EMOJI: Record<string, string> = { I: '🤔', E: '🗣️', S: '🔍', N: '💭', T: '🧠', F: '💖', J: '🗂️', P: '🎲' };
-const RIASEC_EMOJI: Record<string, string> = { R: '🔧', I: '🔬', A: '🎨', S: '🤝', E: '📈', C: '🗂️' };
-const INT_EMOJI: Record<string, string> = {
-  linguistic: '📖', logical: '🔢', spatial: '🧭', kinesthetic: '🤸',
-  musical: '🎵', interpersonal: '👥', intrapersonal: '🪞', naturalist: '🌿',
+type SectionTheme = { color: string; soft: string; deep: string; icon: LucideIcon };
+
+const SECTION_THEME: Record<string, SectionTheme> = {
+  personality: { color: '#9B51E0', soft: '#F3ECFD', deep: '#5B2E94', icon: Compass },
+  interests: { color: '#F2994A', soft: '#FDF0E6', deep: '#9C5A1E', icon: Palette },
+  motivators: { color: '#EB5757', soft: '#FDEAEA', deep: '#9C2B2B', icon: Flame },
+  learning: { color: '#2D9CDB', soft: '#E7F4FC', deep: '#1B6491', icon: BookOpen },
+  intelligences: { color: '#27AE60', soft: '#E6F6EC', deep: '#176B3A', icon: Brain },
+  analytical: { color: '#2F6BED', soft: '#E8EFFD', deep: '#1B3F94', icon: Calculator },
+  eq: { color: '#11998E', soft: '#E3F5F2', deep: '#0A5E58', icon: Heart },
+  clusters: { color: '#2D7FF0', soft: '#E8F1FE', deep: '#16314C', icon: Layers },
+};
+
+const SECTION_MEANING: Record<string, string> = {
+  personality: 'How you naturally take in information, make decisions and organise your world.',
+  interests: 'The kinds of activities and work environments you are genuinely drawn to.',
+  motivators: 'The values and rewards that keep you engaged and energised at work.',
+  learning: 'The channels through which you absorb and retain new information fastest.',
+  intelligences: 'Your strongest natural aptitudes across the multiple-intelligence model.',
+  analytical: 'Your measured reasoning accuracy across numerical, logical, verbal and spatial tasks.',
+  eq: 'How well you recognise, regulate and use emotions — yours and other people’s.',
+};
+
+function themeFor(id: string): SectionTheme {
+  return SECTION_THEME[id] ?? { color: C.blue, soft: C.faint, deep: C.navy, icon: Sparkles };
+}
+
+const LENSES = [
+  { id: 'personality', label: 'Personality', caption: 'How you are wired' },
+  { id: 'interests', label: 'Interests', caption: 'What excites you' },
+  { id: 'motivators', label: 'Motivators', caption: 'What drives you' },
+  { id: 'learning', label: 'Learning', caption: 'How you absorb' },
+  { id: 'intelligences', label: 'Intelligences', caption: 'Your natural strengths' },
+  { id: 'analytical', label: 'Analytical', caption: 'How you reason' },
+];
+
+const TRAIT_NAMES: Record<string, string> = {
+  E: 'Extravert', I: 'Introvert', S: 'Sensing', N: 'Intuitive',
+  T: 'Thinking', F: 'Feeling', J: 'Judging', P: 'Perceiving',
+};
+
+/** Picks a flat glyph for an item label (used by the icon-tile summary). */
+function glyphFor(label: string): LucideIcon {
+  const l = label.toLowerCase();
+  const map: [string, LucideIcon][] = [
+    ['realistic', Wrench], ['investigative', FlaskConical], ['artistic', Palette],
+    ['social', Users], ['enterprising', Briefcase], ['conventional', ClipboardList],
+    ['linguistic', BookOpen], ['logical', Calculator], ['spatial', Box],
+    ['kinesthetic', Activity], ['musical', Music], ['interpersonal', Users],
+    ['intrapersonal', User], ['naturalist', Leaf],
+    ['numerical', Hash], ['verbal', MessageSquare], ['mechanical', Wrench],
+    ['leadership', Crown], ['administrative', ClipboardList], ['organis', ClipboardList],
+    ['co-operation', Users], ['visual', Box], ['creativ', Wand2], ['legal', Scale],
+    ['emot', Heart], ['empathy', Heart], ['regulation', Heart], ['motivation', Flame],
+    ['relationship', Users], ['awareness', User], ['independence', User],
+    ['adventure', Rocket], ['structure', ClipboardList], ['learning', BookOpen],
+    ['paced', Activity], ['service', Heart], ['tech', Cpu],
+  ];
+  for (const [key, icon] of map) if (l.includes(key)) return icon;
+  return Sparkles;
+}
+
+type DomainFallbackModel = {
+  key: string; label: string; focus: string;
+  clusterHints: string[]; skillHints: string[]; interestHints: string[];
+};
+
+const DOMAIN_LIBRARY: DomainFallbackModel[] = [
+  { key: 'engineering-technology', label: 'Engineering & Technology', focus: 'Systems thinking, applied problem solving, design logic, and technical execution.', clusterHints: ['Engineering & Technology', 'Information Technology', 'Design & Architecture'], skillHints: ['Logical Ability', 'Numerical Ability', 'Spatial & Visualisation Ability', 'Mechanical Abilities'], interestHints: ['Realistic', 'Investigative'] },
+  { key: 'research-analytics', label: 'Research & Analytics', focus: 'Evidence-led investigation, modelling, experimentation, and pattern analysis.', clusterHints: ['Science & Research', 'Information Technology', 'Health Science'], skillHints: ['Logical Ability', 'Numerical Ability', 'Verbal Ability'], interestHints: ['Investigative', 'Conventional'] },
+  { key: 'psychology-human-behaviour', label: 'Psychology & Human Behaviour', focus: 'Behaviour insight, reflection, listening, and people-centered analysis.', clusterHints: ['Human Service', 'Education & Training', 'Healthcare'], skillHints: ['Social & Co-operation Skills', 'Verbal Ability', 'Logical Ability'], interestHints: ['Social', 'Investigative'] },
+  { key: 'arts-design-culture', label: 'Arts, Design & Culture', focus: 'Creative expression, visual thinking, narrative building, and cultural output.', clusterHints: ['Arts & Media', 'Media & Communication', 'Design & Architecture'], skillHints: ['Spatial & Visualisation Ability', 'Verbal Ability', 'Social & Co-operation Skills'], interestHints: ['Artistic', 'Social'] },
+  { key: 'business-entrepreneurship', label: 'Business & Entrepreneurship', focus: 'Leadership, influence, execution, and growth in ambiguous environments.', clusterHints: ['Business Management', 'Marketing & Advertising', 'Entrepreneurship'], skillHints: ['Leadership & Decision Making', 'Administrative & Organising Skills', 'Verbal Ability'], interestHints: ['Enterprising', 'Conventional'] },
+  { key: 'finance-strategy', label: 'Finance & Strategy', focus: 'Commercial judgment, numbers, systems, and structured decision-making.', clusterHints: ['Accounts & Finance', 'Government & Legal', 'Administration'], skillHints: ['Numerical Ability', 'Logical Ability', 'Administrative & Organising Skills'], interestHints: ['Conventional', 'Enterprising'] },
+  { key: 'education-social-impact', label: 'Education & Social Impact', focus: 'Teaching, communication, mission-led support, and human development.', clusterHints: ['Education & Training', 'Human Service', 'Healthcare'], skillHints: ['Verbal Ability', 'Social & Co-operation Skills', 'Administrative & Organising Skills'], interestHints: ['Social', 'Artistic'] },
+  { key: 'health-life-sciences', label: 'Health & Life Sciences', focus: 'Care, disciplined evidence use, diagnosis, and scientific service.', clusterHints: ['Health Science', 'Healthcare', 'Science & Research'], skillHints: ['Logical Ability', 'Social & Co-operation Skills', 'Administrative & Organising Skills'], interestHints: ['Investigative', 'Social'] },
+];
+
+const DOMAIN_STREAMS: Record<string, { stream: string; mandatory: string[]; optional: string[] }> = {
+  'engineering-technology': { stream: 'Science (PCM)', mandatory: ['Mathematics', 'Physics', 'Chemistry'], optional: ['Computer Science', 'Engineering Drawing', 'Economics'] },
+  'research-analytics': { stream: 'Science (PCM / PCB)', mandatory: ['Mathematics', 'Physics', 'Chemistry'], optional: ['Computer Science', 'Biology', 'Statistics'] },
+  'psychology-human-behaviour': { stream: 'Humanities / Science', mandatory: ['Psychology', 'English'], optional: ['Sociology', 'Biology', 'Political Science'] },
+  'arts-design-culture': { stream: 'Humanities / Fine Arts', mandatory: ['Fine Arts', 'English'], optional: ['Graphic Design', 'Sociology', 'Mass Media'] },
+  'business-entrepreneurship': { stream: 'Commerce', mandatory: ['Accountancy', 'Business Studies', 'Economics'], optional: ['Mathematics', 'Entrepreneurship', 'Computer Science'] },
+  'finance-strategy': { stream: 'Commerce (with Maths)', mandatory: ['Accountancy', 'Business Studies', 'Mathematics'], optional: ['Economics', 'Statistics', 'Computer Science'] },
+  'education-social-impact': { stream: 'Humanities', mandatory: ['English', 'Sociology'], optional: ['Psychology', 'Political Science', 'History'] },
+  'health-life-sciences': { stream: 'Science (PCB)', mandatory: ['Biology', 'Physics', 'Chemistry'], optional: ['Mathematics', 'Biotechnology', 'Psychology'] },
 };
 
 /* ----------------------------- helpers ----------------------------- */
-function level(p: number) { return p >= 67 ? 'High' : p >= 34 ? 'Medium' : 'Low'; }
-function score19(p: number) { return Math.max(1, Math.min(9, Math.round((p / 100) * 8) + 1)); }
 
-function normalizeTitle(t: string) { return t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
-function resolveCareerTitle(preferred: string | undefined, fallback: string) {
-  const options = CAREER_LIBRARY.map((c) => c.title);
-  const target = preferred?.trim();
-  if (target) {
-    const exact = options.find((title) => normalizeTitle(title) === normalizeTitle(target));
-    if (exact) return exact;
-    const partial = options.find((title) => {
-      const a = normalizeTitle(title); const b = normalizeTitle(target);
-      return a.includes(b) || b.includes(a);
-    });
-    if (partial) return partial;
-  }
-  return fallback;
-}
-function toLakhs(amount: number) { return `Rs ${(amount / 100000).toFixed(amount >= 1000000 ? 0 : 1)}L`; }
+function average(values: number[]) { return values.length ? values.reduce((s, v) => s + v, 0) / values.length : 0; }
+function clampPercent(value: number) { return Math.max(0, Math.min(100, Math.round(value))); }
+function trimSkillLabel(label: string) { return label.replace(' & Decision Making', '').replace(' Ability', ''); }
+function trimIntelligenceLabel(label: string) { return label.split(' (')[0]; }
+function firstName(name: string) { const c = name.trim(); return c ? c.split(' ')[0] : 'Student'; }
+function bandLabel(score: number) { return score >= 66 ? 'High' : score >= 45 ? 'Medium' : 'Low'; }
+function toneLabel(score: number) { return score >= 82 ? 'High conviction' : score >= 68 ? 'Strong signal' : score >= 52 ? 'Developing signal' : 'Early signal'; }
 
-const VERDICT_STYLE: Record<string, string> = {
-  'Top Choice': 'text-white', 'Good Choice': 'text-white',
-  Optional: 'text-white', Develop: 'text-white', Avoid: 'text-white',
-};
-const VERDICT_BG: Record<string, string> = {
-  'Top Choice': '#10B981', 'Good Choice': '#3B82F6', Optional: '#94A3B8', Develop: '#F59E0B', Avoid: '#EF4444',
-};
-
-const STAGE_BY_LABEL: Record<string, { stage: string; emoji: string; note: string }> = {
-  'Future-Ready': { stage: 'Future-Ready', emoji: '🚀', note: 'You have strong clarity and are ready to act on your plan.' },
-  Clarity: { stage: 'Clarity', emoji: '🌟', note: 'You have good direction — now refine and commit to a path.' },
-  Exploring: { stage: 'Exploring', emoji: '🧭', note: 'You are exploring options — gather information and narrow down.' },
-  'Getting Started': { stage: 'Just Starting', emoji: '🌱', note: 'You are early in planning — explore your strengths and options.' },
-};
-
-const CLUSTER_DESC: Record<string, string[]> = {
-  'Information Technology': ['Build apps, websites, data and AI systems.', 'Wanted in every industry, with strong pay growth.'],
-  'Health Science': ['Care for patients or support medical research.', 'Stable, respected and meaningful work.'],
-  'Science & Research': ['Investigate, experiment and discover new things.', 'Great for curious, analytical minds.'],
-  'Engineering & Technology': ['Design and build machines, structures and systems.', 'Hands-on problem solving with real impact.'],
-  'Accounts & Finance': ['Work with money, audits, taxes and investments.', 'Numbers, accuracy and structure.'],
-  'Government & Legal': ['Public service, policy, law and justice.', 'Service, stability and authority.'],
-  'Business Management': ['Lead teams and grow organisations.', 'Leadership, strategy and people skills.'],
-  'Arts & Media': ['Create design, content, film and visuals.', 'Where imagination meets craft.'],
-  'Education & Training': ['Teach, mentor and help people grow.', 'Communication and subject mastery.'],
-  'Human Service': ['Support wellbeing, counselling and community.', 'Empathy and people skills.'],
-  'Marketing & Advertising': ['Brand, growth, sales and communication.', 'Creativity with analytics.'],
-  'Media & Communication': ['Journalism, storytelling and digital media.', 'Words, research and reach.'],
-};
-function clusterDesc(label: string) {
-  return CLUSTER_DESC[label] ?? ['A field that matches your strongest interests and skills.', 'Explore the day-to-day roles before deciding.'];
+function confidenceFromProfile(profile: PsychometricProfile) {
+  if (profile.confidence) return profile.confidence;
+  const answered = profile.sectionMeta?.reduce((s, i) => s + i.answered, 0) ?? 0;
+  const total = profile.sectionMeta?.reduce((s, i) => s + i.total, 0) ?? 0;
+  const percent = total ? clampPercent((answered / total) * 100) : 0;
+  return { percent, answered, total, label: percent >= 90 ? 'High reliability' : percent >= 70 ? 'Good reliability' : percent >= 50 ? 'Moderate reliability' : 'Low reliability' };
 }
 
-/* subject streams derived from interests + skills */
-function streamMatch(p: PsychometricProfile) {
-  const r = Object.fromEntries(p.interests.map((b) => [b.label, b.percent])) as Record<string, number>;
-  const sk = Object.fromEntries(p.skills.map((b) => [b.label, b.percent])) as Record<string, number>;
-  const inv = r['Investigative'] ?? 0; const art = r['Artistic'] ?? 0; const soc = r['Social'] ?? 0;
-  const ent = r['Enterprising'] ?? 0; const con = r['Conventional'] ?? 0;
-  const num = sk['Numerical Ability'] ?? 0; const log = sk['Logical Ability'] ?? 0; const verb = sk['Verbal Ability'] ?? 0;
-  const clp = (n: number) => Math.max(20, Math.min(98, Math.round(n)));
+function buildFallbackBreakdown(profile: PsychometricProfile): AnalyticalBreakdown[] {
+  const total = profile.analyticalScore?.total ?? 0;
+  const perBucket = total ? Math.max(1, Math.round(total / 4)) : 4;
+  const skillMap = Object.fromEntries(profile.skills.map((s) => [s.label, s.percent])) as Record<string, number>;
   return [
-    { name: 'Science - Maths', icon: '📐', percent: clp(inv * 0.5 + num * 0.3 + log * 0.2),
-      mandatory: ['Maths', 'Physics', 'Chemistry'], optional: ['Computer Science', 'Biology', 'Economics'] },
-    { name: 'Science - Bio', icon: '🧬', percent: clp(inv * 0.45 + soc * 0.25 + (sk['Social & Co-operation Skills'] ?? 0) * 0.3),
-      mandatory: ['Biology', 'Physics', 'Chemistry'], optional: ['Computer Science', 'Maths', 'Psychology'] },
-    { name: 'Commerce', icon: '💼', percent: clp(con * 0.5 + ent * 0.3 + num * 0.2),
-      mandatory: ['Accountancy', 'Economics', 'Business Studies'], optional: ['Business Maths', 'Legal Studies'] },
-    { name: 'Humanities', icon: '📚', percent: clp(art * 0.4 + soc * 0.4 + verb * 0.2),
-      mandatory: ['Language Arts', 'History', 'Political Science'], optional: ['Psychology', 'Fine Arts'] },
+    { key: 'numerical', label: 'Numerical reasoning', percent: skillMap['Numerical Ability'] ?? 0, total: perBucket, correct: Math.round(((skillMap['Numerical Ability'] ?? 0) / 100) * perBucket) },
+    { key: 'logical', label: 'Logical reasoning', percent: skillMap['Logical Ability'] ?? 0, total: perBucket, correct: Math.round(((skillMap['Logical Ability'] ?? 0) / 100) * perBucket) },
+    { key: 'verbal', label: 'Verbal reasoning', percent: skillMap['Verbal Ability'] ?? 0, total: perBucket, correct: Math.round(((skillMap['Verbal Ability'] ?? 0) / 100) * perBucket) },
+    { key: 'spatial', label: 'Spatial reasoning', percent: skillMap['Spatial & Visualisation Ability'] ?? 0, total: perBucket, correct: Math.round(((skillMap['Spatial & Visualisation Ability'] ?? 0) / 100) * perBucket) },
   ].sort((a, b) => b.percent - a.percent);
 }
 
-/* ----------------------------- UI atoms ----------------------------- */
+function buildFallbackSections(profile: PsychometricProfile, ab: AnalyticalBreakdown[]): SectionScore[] {
+  const intelligences = profile.intelligences ?? [];
+  const personalityScore = clampPercent(average(profile.mbtiAxes.map((a) => Math.max(a.leftPct, a.rightPct))));
+  const analyticalScore = profile.analyticalScore?.total ? clampPercent((profile.analyticalScore.correct / profile.analyticalScore.total) * 100) : clampPercent(average(ab.map((i) => i.percent)));
+  return [
+    { id: 'personality', title: 'Personality', score: personalityScore, basis: 'Consistency across the four working-style axes.', strengths: profile.mbtiAxes.slice().sort((a, b) => Math.abs(b.rightPct - b.leftPct) - Math.abs(a.rightPct - a.leftPct)).slice(0, 2).map((a) => `${a.dominant} preference is clearly expressed`), weaknesses: profile.mbtiAxes.slice().sort((a, b) => Math.abs(a.rightPct - a.leftPct) - Math.abs(b.rightPct - b.leftPct)).slice(0, 2).map((a) => `Balance between ${a.left.toLowerCase()} and ${a.right.toLowerCase()} may need clearer routines.`) },
+    { id: 'interests', title: 'Interests', score: clampPercent(average(profile.interests.slice(0, 3).map((i) => i.percent))), basis: 'Strength of your dominant interest themes.', strengths: profile.interests.slice(0, 3).map((i) => `${i.label} interest`), weaknesses: profile.interests.slice(-2).map((i) => `Lower pull toward ${i.label.toLowerCase()} tasks.`) },
+    { id: 'motivators', title: 'Motivators', score: clampPercent(average(profile.motivators.slice(0, 3).map((i) => i.percent))), basis: 'Clarity of the work environments that energise you.', strengths: profile.motivators.slice(0, 2).map((i) => `${i.label} is a strong work driver`), weaknesses: profile.motivators.slice(-2).map((i) => `${i.label} is a weaker day-to-day driver.`) },
+    { id: 'learning', title: 'Learning', score: clampPercent((profile.learning[0]?.percent ?? 0) + (profile.learning[1]?.percent ?? 0)), basis: 'Concentration of your preferred study channels.', strengths: profile.learning.slice(0, 2).map((i) => `${i.label} supports faster absorption`), weaknesses: profile.learning.slice(-2).map((i) => `${i.label} is a lower-efficiency study input.`) },
+    { id: 'intelligences', title: 'Intelligences', score: clampPercent(average(intelligences.slice(0, 3).map((i) => i.percent))), basis: 'Strength of the leading intelligence signals.', strengths: intelligences.slice(0, 3).map((i) => `${trimIntelligenceLabel(i.label)} intelligence`), weaknesses: intelligences.slice(-2).map((i) => `${trimIntelligenceLabel(i.label)} needs more deliberate use.`) },
+    { id: 'analytical', title: 'Analytical reasoning', score: analyticalScore, basis: profile.analyticalScore?.total ? `${profile.analyticalScore.correct}/${profile.analyticalScore.total} correct across measured reasoning tasks.` : 'Estimated from the measured aptitude pattern in the profile.', strengths: ab.slice(0, 2).map((i) => `${i.label}: ${i.correct}/${i.total} correct`), weaknesses: ab.slice(-2).map((i) => `${i.label} needs more deliberate practice.`) },
+  ];
+}
 
-/** Mindler-signature Low/Medium/High zoned bar. */
-function ZoneBar({ label, percent, color, labelWidth = 150 }: { label: string; percent: number; color: string; labelWidth?: number }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="shrink-0 text-[11px] text-ink-2 text-right leading-tight" style={{ width: labelWidth }}>{label}</span>
-      <div className="flex-1 relative h-5 rounded-md overflow-hidden border border-line">
-        <div className="absolute inset-0 flex">
-          <div className="flex-1" style={{ background: ZONE.low }} />
-          <div className="flex-1" style={{ background: ZONE.med }} />
-          <div className="flex-1" style={{ background: ZONE.high }} />
-        </div>
-        <div className="absolute inset-y-0 left-0 rounded-r-md flex items-center justify-end pr-1.5"
-          style={{ width: `${Math.max(3, percent)}%`, background: color }}>
-          {percent >= 16 && <span className="text-[9px] font-bold text-white">{percent}%</span>}
-        </div>
-        {percent < 16 && (
-          <span className="absolute top-1/2 -translate-y-1/2 text-[9px] font-bold"
-            style={{ left: `calc(${Math.max(3, percent)}% + 4px)`, color }}>{percent}%</span>
-        )}
-      </div>
-    </div>
-  );
+function buildFallbackDomains(profile: PsychometricProfile): DomainFitment[] {
+  const clusterMap = Object.fromEntries(profile.clusters.map((i) => [i.label, i.percent])) as Record<string, number>;
+  const skillMap = Object.fromEntries(profile.skills.map((i) => [i.label, i.percent])) as Record<string, number>;
+  const interestMap = Object.fromEntries(profile.interests.map((i) => [i.label, i.percent])) as Record<string, number>;
+  return DOMAIN_LIBRARY.map((domain) => {
+    const clusterScore = average(domain.clusterHints.map((k) => clusterMap[k] ?? 0));
+    const skillScore = average(domain.skillHints.map((k) => skillMap[k] ?? 0));
+    const interestScore = average(domain.interestHints.map((k) => interestMap[k] ?? 0));
+    const score = clampPercent(clusterScore * 0.32 + skillScore * 0.4 + interestScore * 0.28);
+    const leadingSkills = domain.skillHints.map((k) => ({ label: trimSkillLabel(k), percent: skillMap[k] ?? 0 })).sort((a, b) => b.percent - a.percent).slice(0, 2);
+    const leadingInterests = domain.interestHints.map((k) => ({ label: k, percent: interestMap[k] ?? 0 })).sort((a, b) => b.percent - a.percent).slice(0, 2);
+    const signals = [`${leadingInterests.map((i) => i.label).join(' + ')} interests`, `${leadingSkills.map((i) => i.label).join(' and ')} capability`, `${domain.clusterHints[0]} ecosystem alignment`];
+    return { key: domain.key, label: domain.label, score, focus: domain.focus, rationale: `This domain is supported by ${signals[0].toLowerCase()}, ${signals[1].toLowerCase()}, and visible alignment with ${domain.clusterHints[0].toLowerCase()}.`, signals };
+  }).sort((a, b) => b.score - a.score);
 }
-function ZoneAxis({ labelWidth = 150 }: { labelWidth?: number }) {
-  return (
-    <div className="flex mt-1" style={{ paddingLeft: labelWidth + 12 }}>
-      <div className="flex-1 flex justify-between text-[8.5px] font-semibold text-ink-4">
-        <span>Low</span><span>Medium</span><span>High</span>
-      </div>
-    </div>
-  );
+
+function domainEvidence(domain: DomainFitment, profile: PsychometricProfile) {
+  const model = DOMAIN_LIBRARY.find((i) => i.key === domain.key);
+  const skillMap = Object.fromEntries(profile.skills.map((i) => [i.label, i.percent])) as Record<string, number>;
+  const interestMap = Object.fromEntries(profile.interests.map((i) => [i.label, i.percent])) as Record<string, number>;
+  const clusterMap = Object.fromEntries(profile.clusters.map((i) => [i.label, i.percent])) as Record<string, number>;
+  if (!model) return [{ label: 'Interests', value: domain.score }, { label: 'Capability', value: domain.score }, { label: 'Ecosystem fit', value: domain.score }];
+  return [
+    { label: 'Interests', value: clampPercent(average(model.interestHints.map((k) => interestMap[k] ?? 0))) },
+    { label: 'Capability', value: clampPercent(average(model.skillHints.map((k) => skillMap[k] ?? 0))) },
+    { label: 'Ecosystem fit', value: clampPercent(average(model.clusterHints.map((k) => clusterMap[k] ?? 0))) },
+  ];
 }
-function ZoneChart({ data, color, labelWidth = 150 }: { data: { key: string; label: string; percent: number }[]; color: string | ((i: number) => string); labelWidth?: number }) {
+
+function buildExecutiveNarrative(profile: PsychometricProfile, domains: DomainFitment[], sections: SectionScore[], analytical: AnalyticalBreakdown[], confidence: ReturnType<typeof confidenceFromProfile>) {
+  const topDomain = domains[0];
+  const strongest = [...sections].sort((a, b) => b.score - a.score)[0];
+  const weakest = [...sections].sort((a, b) => a.score - b.score)[0];
+  const topSkill = trimSkillLabel(profile.skills[0]?.label ?? 'capability signal');
+  const topInterest = profile.topInterests[0] ?? profile.interests[0]?.label ?? 'general exploration';
+  const topIntelligence = trimIntelligenceLabel(profile.dominantIntelligence ?? profile.intelligences?.[0]?.label ?? 'core intelligence');
+  const topAnalytical = analytical[0]?.label.toLowerCase();
+  return `${firstName(profile.name)} shows the strongest fit toward ${topDomain?.label.toLowerCase() ?? 'broad discovery domains'}, supported by ${topInterest.toLowerCase()} interests, ${topSkill.toLowerCase()}, and ${topIntelligence.toLowerCase()}. ${strongest?.title ?? 'The profile'} currently carries the clearest evidence signal, while ${weakest?.title.toLowerCase() ?? 'the lowest-scoring area'} should receive the next focused development effort. ${topAnalytical ? `${topAnalytical} is the sharpest measured reasoning block in the current dataset.` : 'Measured reasoning evidence is still building.'} Reliability is ${confidence.label.toLowerCase()}.`;
+}
+
+function buildPriorityActions(profile: PsychometricProfile, domains: DomainFitment[], sections: SectionScore[], analytical: AnalyticalBreakdown[]) {
+  const weakest = [...sections].sort((a, b) => a.score - b.score)[0];
+  const weakestAnalytical = [...analytical].sort((a, b) => a.percent - b.percent)[0];
+  const topDomain = domains[0];
+  return [
+    weakest ? `Raise ${weakest.title.toLowerCase()} with one structured improvement habit each week.` : 'Build stronger evidence by completing more of the assessment.',
+    weakestAnalytical ? `Practice ${weakestAnalytical.label.toLowerCase()} in short, repeated sessions to improve measured accuracy.` : 'Continue building reasoning evidence through aptitude practice.',
+    topDomain ? `Test the ${topDomain.label.toLowerCase()} domain through projects, reading, mentorship, or shadowing.` : 'Test one broad domain through projects, reading, and real-world exposure.',
+    `Use ${profile.dominantLearning.toLowerCase()} methods when learning new material so strengths compound faster.`,
+  ];
+}
+
+/* ------------------------- shared UI atoms ------------------------- */
+
+function Card({ children, className = '', pad = 'p-5' }: { children: ReactNode; className?: string; pad?: string }) {
+  return <div className={`rounded-2xl border bg-white ${pad} ${className}`} style={{ borderColor: C.line, boxShadow: '0 1px 2px rgba(22,36,59,0.04), 0 10px 24px rgba(22,36,59,0.05)' }}>{children}</div>;
+}
+
+function Eyebrow({ children, color = C.muted }: { children: ReactNode; color?: string }) {
+  return <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color }}>{children}</p>;
+}
+
+/** Mindler signature: all bars in one bordered box, labels INSIDE the bars,
+    sitting on a Low | Medium | High gridded track. */
+function MindlerBars({ items, color }: { items: { label: string; value: number }[]; color: string }) {
   return (
-    <div className="rounded-2xl border border-line p-4 bg-white">
-      <div className="space-y-2">
-        {data.map((b, i) => (
-          <ZoneBar key={b.key} label={b.label} percent={b.percent} labelWidth={labelWidth}
-            color={typeof color === 'function' ? color(i) : color} />
+    <div className="overflow-hidden rounded-xl border" style={{ borderColor: C.line }}>
+      <div className="relative px-3 py-3">
+        <div className="pointer-events-none absolute inset-0 flex px-3">
+          <div className="flex-1 border-r" style={{ borderColor: '#EDF1F7' }} />
+          <div className="flex-1 border-r" style={{ borderColor: '#EDF1F7' }} />
+          <div className="flex-1" />
+        </div>
+        <div className="relative space-y-1.5">
+          {items.map((it) => (
+            <div key={it.label} className="relative h-[26px] w-full overflow-hidden rounded-[5px]" style={{ background: C.faint }}>
+              <div className="flex h-full items-center rounded-[5px] pl-2.5 pr-2" style={{ width: `${Math.max(26, it.value)}%`, background: color }}>
+                <span className="truncate text-[11px] font-semibold text-white">{it.label}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex border-t" style={{ borderColor: C.line, background: C.faint }}>
+        {['Low', 'Medium', 'High'].map((z) => (
+          <div key={z} className="flex-1 py-1.5 text-center text-[9.5px] font-semibold uppercase tracking-wider" style={{ color: C.muted }}>{z}</div>
         ))}
       </div>
-      <ZoneAxis labelWidth={labelWidth} />
     </div>
   );
 }
 
-/** Colourful dominant-trait tile with an emoji icon. */
-function TraitTile({ emoji, title, sub, color }: { emoji: string; title: string; sub?: string; color: string }) {
+/** Mindler "Dominant ___" card — colored header strip + result + description. */
+function DominantCard({ theme, tag, title, body }: { theme: SectionTheme; tag: string; title: string; body: string }) {
   return (
-    <div className="rounded-2xl p-3 text-center" style={{ background: `${color}14`, border: `1.5px solid ${color}55` }}>
-      <div className="w-12 h-12 rounded-2xl mx-auto flex items-center justify-center text-2xl mb-1.5" style={{ background: `${color}26` }}>{emoji}</div>
-      <p className="text-[12px] font-extrabold text-ink leading-tight">{title}</p>
-      {sub && <p className="text-[10.5px] font-bold mt-0.5" style={{ color }}>{sub}</p>}
+    <div className="overflow-hidden rounded-xl border" style={{ borderColor: `${theme.color}55` }}>
+      <div className="px-4 py-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-white" style={{ background: theme.color }}>{tag}</div>
+      <div className="p-4" style={{ background: theme.soft }}>
+        <p className="text-[13px] font-bold" style={{ color: theme.deep }}>{title}</p>
+        <p className="mt-1.5 text-[12px] leading-5" style={{ color: C.body }}>{body}</p>
+      </div>
     </div>
   );
 }
 
-/** 1..9 score chips (Mindler personality style). */
-function ScaleChips({ score, color }: { score: number; color: string }) {
+/** Chunky flat colored icon tile (the Mindler "Dominant" grid look). */
+function FlatTile({ icon: Icon, label, color }: { icon: LucideIcon; label: string; color: string }) {
+  return (
+    <div className="flex flex-col items-center text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-sm" style={{ background: `linear-gradient(150deg, ${color}, ${color}cc)` }}>
+        <Icon className="h-6 w-6" />
+      </div>
+      <p className="mt-1.5 max-w-[88px] text-[10px] font-semibold leading-tight" style={{ color: C.body }}>{label}</p>
+    </div>
+  );
+}
+
+/** 1–7 numbered scale dot indicator (per-trait detail). */
+function ScaleDots({ value, color, count = 7 }: { value: number; color: string; count?: number }) {
+  const active = Math.min(count, Math.max(1, Math.round((value / 100) * count)));
   return (
     <div className="flex gap-1">
-      {Array.from({ length: 9 }, (_, i) => i + 1).map((n) => (
-        <span key={n} className="w-5 h-5 rounded-md text-[10px] font-bold flex items-center justify-center"
-          style={n === score ? { background: color, color: '#fff' } : { background: '#F1F1F4', color: '#9A9AA5' }}>{n}</span>
-      ))}
+      {Array.from({ length: count }).map((_, i) => {
+        const n = i + 1; const on = n === active;
+        return <span key={n} className="flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold" style={{ background: on ? color : '#EEF2F8', color: on ? '#fff' : C.muted }}>{n}</span>;
+      })}
     </div>
   );
 }
 
-/** Meaning / Analysis / Development boxes. */
-function DimBox({ color, meaning, analysis, development }: { color: string; meaning: string; analysis: string; development: string[] }) {
-  return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-xl border border-line overflow-hidden">
-          <div className="px-3 py-1 text-[10px] font-bold text-white" style={{ background: color }}>What it means</div>
-          <p className="px-3 py-2 text-[11px] text-ink-2 leading-snug">{meaning}</p>
-        </div>
-        <div className="rounded-xl border border-line overflow-hidden">
-          <div className="px-3 py-1 text-[10px] font-bold text-white" style={{ background: color }}>Your result</div>
-          <p className="px-3 py-2 text-[11px] text-ink-2 leading-snug">{analysis}</p>
-        </div>
-      </div>
-      <div className="rounded-xl border border-line overflow-hidden">
-        <div className="px-3 py-1 text-[10px] font-bold text-white" style={{ background: C.ink }}>How to grow 🌱</div>
-        <ul className="px-3 py-2 grid sm:grid-cols-2 gap-x-4 gap-y-1">
-          {development.map((d, i) => <li key={i} className="text-[11px] text-ink-2 flex gap-1.5"><span style={{ color }}>•</span>{d}</li>)}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-function Donut({ percent, label, color }: { percent: number; label: string; color: string }) {
-  return (
-    <div className="flex flex-col items-center">
-      <div className="relative w-20 h-20">
-        <div className="w-20 h-20 rounded-full" style={{ background: `conic-gradient(${color} ${percent * 3.6}deg, #ECECEF 0deg)` }} />
-        <div className="absolute inset-[9px] bg-white rounded-full flex items-center justify-center text-base font-extrabold" style={{ color }}>{percent}%</div>
-      </div>
-      <p className="text-[11px] font-bold text-ink-2 mt-1 text-center leading-tight">{label}</p>
-    </div>
-  );
-}
-
-function H({ children, color = RED }: { children: React.ReactNode; color?: string }) {
-  return (
-    <div className="flex items-center gap-2 mb-4">
-      <span className="w-2 h-6 rounded-full" style={{ background: color }} />
-      <h2 className="text-[18px] font-extrabold text-ink">{children}</h2>
-    </div>
-  );
-}
-function Bullets({ items, color = RED }: { items: string[]; color?: string }) {
+function Bullet({ items, color }: { items: string[]; color: string }) {
   return (
     <ul className="space-y-1.5">
-      {items.map((t, i) => <li key={i} className="text-[12px] text-ink-2 flex gap-2"><span style={{ color }}>•</span>{t}</li>)}
+      {items.map((item) => (
+        <li key={item} className="flex gap-2 text-[12px] leading-5" style={{ color: C.body }}>
+          <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color }} /><span>{item}</span>
+        </li>
+      ))}
     </ul>
   );
 }
 
-function Page({ n, name, children }: { n: number; name: string; children: React.ReactNode }) {
+function StrengthWeakness({ strengths, weaknesses }: { strengths: string[]; weaknesses: string[] }) {
   return (
-    <section className="a4-page bg-white shadow-md mx-auto relative flex flex-col"
-      style={{ width: '210mm', height: '297mm', breakBefore: n > 1 ? 'page' : 'auto', overflow: 'hidden' }}>
-      <div className="flex items-center justify-between px-10 pt-6 pb-2 border-b border-line">
-        <span className="text-[11px] font-bold uppercase tracking-wide text-ink-2">{name}</span>
-        <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: RED }}>Career Discovery Report</span>
-        <Logo size={22} />
+    <div className="grid grid-cols-2 gap-3">
+      <div className="rounded-xl border p-3.5" style={{ borderColor: C.line, background: '#F1FAF4' }}>
+        <div className="mb-2 flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: C.green }} /><Eyebrow color={C.green}>Strengths</Eyebrow></div>
+        <Bullet items={strengths.slice(0, 3)} color={C.green} />
       </div>
-      <div className="flex-1 px-10 py-6 overflow-hidden">{children}</div>
-      <div className="flex items-center justify-between px-10 py-3 border-t border-line text-[10px] text-ink-4">
-        <span>📞 8977760443 · support@onegrasp.com</span>
-        <span>Page {n} of {TOTAL_PAGES}</span>
+      <div className="rounded-xl border p-3.5" style={{ borderColor: C.line, background: '#FDF2F2' }}>
+        <div className="mb-2 flex items-center gap-1.5"><Target className="h-4 w-4" style={{ color: C.red }} /><Eyebrow color={C.red}>Areas to develop</Eyebrow></div>
+        <Bullet items={weaknesses.slice(0, 3)} color={C.red} />
       </div>
+    </div>
+  );
+}
+
+function Donut({ value, size = 132, color = C.blue, track = '#E7EEF8', caption = 'Fit index' }: { value: number; size?: number; color?: string; track?: string; caption?: string }) {
+  const stroke = 12; const radius = (size - stroke) / 2; const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference - (Math.max(0, Math.min(100, value)) / 100) * circumference;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={track} strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dashOffset} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+      <text x="50%" y="44%" textAnchor="middle" dominantBaseline="central" style={{ fill: C.ink, fontSize: size * 0.26, fontWeight: 700 }}>{value}</text>
+      <text x="50%" y="63%" textAnchor="middle" dominantBaseline="central" style={{ fill: C.muted, fontSize: size * 0.085, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{caption}</text>
+    </svg>
+  );
+}
+
+function RingStat({ label, value, color, size = 78 }: { label: string; value: number; color: string; size?: number }) {
+  const stroke = 9; const radius = (size - stroke) / 2; const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference - (Math.max(0, Math.min(100, value)) / 100) * circumference;
+  return (
+    <div className="flex flex-col items-center text-center">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#EEF2F8" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dashOffset} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+        <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" style={{ fill: C.ink, fontSize: size * 0.26, fontWeight: 700 }}>{value}</text>
+      </svg>
+      <p className="mt-1.5 text-[10.5px] font-semibold leading-tight" style={{ color: C.body }}>{label}</p>
+    </div>
+  );
+}
+
+/** Radar / spider chart — turns a set of scores into an instant "profile shape". */
+function RadarChart({ axes, color, size = 192 }: { axes: { label: string; value: number }[]; color: string; size?: number }) {
+  const n = axes.length;
+  const cx = size / 2, cy = size / 2, R = size / 2 - 30;
+  const ang = (i: number) => (Math.PI * 2 * i) / n - Math.PI / 2;
+  const pt = (i: number, r: number): [number, number] => [cx + r * Math.cos(ang(i)), cy + r * Math.sin(ang(i))];
+  const ringPoly = (f: number) => axes.map((_, i) => pt(i, R * f).join(',')).join(' ');
+  const dataPoly = axes.map((a, i) => pt(i, (R * Math.max(0, Math.min(100, a.value))) / 100).join(',')).join(' ');
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full" aria-hidden>
+      {[0.25, 0.5, 0.75, 1].map((f) => <polygon key={f} points={ringPoly(f)} fill={f === 1 ? '#FBFCFE' : 'none'} stroke="#E4EAF3" strokeWidth="1" />)}
+      {axes.map((_, i) => { const [x, y] = pt(i, R); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#EEF2F8" strokeWidth="1" />; })}
+      <polygon points={dataPoly} fill={color} fillOpacity="0.2" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+      {axes.map((a, i) => { const [x, y] = pt(i, (R * Math.max(0, Math.min(100, a.value))) / 100); return <circle key={i} cx={x} cy={y} r="3" fill={color} />; })}
+      {axes.map((a, i) => {
+        const [x, y] = pt(i, R + 13);
+        const c = Math.cos(ang(i));
+        const anchor = Math.abs(c) < 0.3 ? 'middle' : c > 0 ? 'start' : 'end';
+        return <text key={i} x={x} y={y} textAnchor={anchor} dominantBaseline="middle" style={{ fontSize: 8, fontWeight: 600, fill: C.muted }}>{a.label}</text>;
+      })}
+    </svg>
+  );
+}
+
+/** Plain-language takeaway callout — converts scores into an insight sentence. */
+function InsightBanner({ color, children }: { color: string; children: ReactNode }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border p-3" style={{ borderColor: `${color}40`, background: `${color}0d` }}>
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full" style={{ background: color }}><Lightbulb className="h-3 w-3 text-white" /></span>
+      <p className="text-[12px] leading-5" style={{ color: C.body }}><b style={{ color: C.ink }}>What this means: </b>{children}</p>
+    </div>
+  );
+}
+
+/** Clean rising-chart motif for section hero banners (white-on-colour). */
+function HeroDeco() {
+  return (
+    <svg viewBox="0 0 220 120" className="h-full w-full" fill="none" aria-hidden>
+      <circle cx="184" cy="30" r="20" fill="#fff" opacity="0.12" />
+      <circle cx="184" cy="30" r="11" fill="#fff" opacity="0.18" />
+      {[{ x: 96, h: 26 }, { x: 116, h: 40 }, { x: 136, h: 56 }, { x: 156, h: 74 }, { x: 176, h: 92 }].map((b) => (
+        <rect key={b.x} x={b.x} y={104 - b.h} width="12" height={b.h} rx="3" fill="#fff" opacity="0.16" />
+      ))}
+      <polyline points="102,84 122,72 142,58 162,42 182,26" stroke="#fff" strokeWidth="2.4" strokeOpacity="0.55" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      {[[102, 84], [122, 72], [142, 58], [162, 42], [182, 26]].map(([cx, cy]) => (
+        <circle key={cx} cx={cx} cy={cy} r="3.4" fill="#fff" />
+      ))}
+    </svg>
+  );
+}
+
+/** Flat "path to the flag" illustration for the career-match page. */
+function CareerIllo() {
+  return (
+    <svg viewBox="0 0 260 120" className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <ellipse cx="130" cy="106" rx="120" ry="12" fill="#2D7FF0" opacity="0.08" />
+      {/* steps rising to the right */}
+      {[{ x: 20, h: 22, c: '#CFE0F7' }, { x: 70, h: 40, c: '#9DC2F0' }, { x: 120, h: 58, c: '#5B9DF7' }, { x: 170, h: 78, c: '#2D7FF0' }].map((s) => (
+        <rect key={s.x} x={s.x} y={100 - s.h} width="46" height={s.h} rx="6" fill={s.c} />
+      ))}
+      {/* flag on top step */}
+      <rect x="206" y="14" width="3.5" height="32" rx="1.5" fill="#16314C" />
+      <path d="M209.5,16 L236,22 L209.5,30 Z" fill="#F2994A" />
+      {/* star + dots */}
+      <path d="M150,12 l2.2,4.6 5,0.6 -3.7,3.5 1,5 -4.5,-2.5 -4.5,2.5 1,-5 -3.7,-3.5 5,-0.6 Z" fill="#F2C94C" />
+      <circle cx="42" cy="34" r="3" fill="#27AE60" /><circle cx="92" cy="22" r="2.4" fill="#EB5757" />
+      {/* dashed path */}
+      <path d="M30,86 C70,80 90,60 130,52 C160,46 180,40 206,30" stroke="#2D7FF0" strokeWidth="2" strokeDasharray="3 4" fill="none" strokeOpacity="0.5" />
+    </svg>
+  );
+}
+
+function SectionHero({ theme, eyebrow, title, subtitle }: { theme: SectionTheme; eyebrow: string; title: string; subtitle: string }) {
+  const Icon = theme.icon;
+  return (
+    <div className="relative overflow-hidden rounded-2xl px-6 py-5" style={{ background: `linear-gradient(135deg, ${theme.color}, ${theme.deep})` }}>
+      <div className="absolute right-0 top-0 h-full w-56 opacity-80"><HeroDeco /></div>
+      <div className="relative flex items-center gap-4">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/18 text-white backdrop-blur"><Icon className="h-6 w-6" /></span>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">{eyebrow}</p>
+          <h2 className="text-[22px] font-extrabold leading-tight text-white">{title}</h2>
+          <p className="mt-0.5 max-w-[470px] text-[11.5px] leading-4 text-white/85">{subtitle}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Iconic side-profile head with a stylised brain — the framework illustration. */
+function HeadIllo() {
+  return (
+    <svg viewBox="0 0 230 240" className="mx-auto h-full w-full max-h-[300px]" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <defs>
+        <linearGradient id="head-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#3F8BF2" /><stop offset="1" stopColor="#1E4FA8" /></linearGradient>
+      </defs>
+      <circle cx="115" cy="118" r="104" fill="#2D7FF0" opacity="0.07" />
+      <circle cx="115" cy="118" r="78" fill="#2D7FF0" opacity="0.05" />
+      {/* neck + shoulders */}
+      <path d="M86,176 L86,200 C86,214 70,220 58,224 L172,224 C150,216 142,206 142,192 L142,176 Z" fill="url(#head-g)" opacity="0.55" />
+      {/* head silhouette facing right */}
+      <path d="M70,178 C46,150 46,96 72,68 C96,42 146,44 162,76 C168,90 165,100 173,108 C181,116 185,118 181,124 C177,129 169,126 168,134 C173,150 159,172 132,182 C112,190 86,190 70,178 Z" fill="url(#head-g)" />
+      {/* stylised brain */}
+      <g transform="translate(132 96)">
+        <circle cx="-16" cy="-2" r="13" fill="#fff" opacity="0.92" />
+        <circle cx="1" cy="-9" r="12" fill="#fff" opacity="0.92" />
+        <circle cx="14" cy="1" r="12" fill="#fff" opacity="0.92" />
+        <circle cx="-3" cy="10" r="11" fill="#fff" opacity="0.92" />
+        <circle cx="11" cy="13" r="9" fill="#fff" opacity="0.92" />
+        <path d="M-22,-2 q7,-9 14,0 q7,9 14,0 q6,-6 10,2" stroke="#2D7FF0" strokeWidth="2" fill="none" strokeLinecap="round" />
+        <path d="M-8,-12 q2,10 -2,20" stroke="#2D7FF0" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+      </g>
+      {/* spark dots */}
+      <circle cx="186" cy="70" r="4" fill="#F2C94C" /><circle cx="196" cy="92" r="2.6" fill="#27AE60" /><circle cx="60" cy="60" r="3" fill="#2D9CDB" />
+    </svg>
+  );
+}
+
+/** Floating flat badge with a tiny glyph (used in the cover scene). */
+function Badge({ x, y, bg, kind }: { x: number; y: number; bg: string; kind: 'cap' | 'target' | 'bulb' | 'briefcase' }) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <circle cx="0" cy="0" r="20" fill="#fff" opacity="0.95" />
+      <circle cx="0" cy="0" r="20" fill={bg} opacity="0.16" />
+      {kind === 'cap' && <g fill={bg}><path d="M-11,-2 L0,-8 L11,-2 L0,4 Z" /><path d="M-7,0 L-7,6 Q0,10 7,6 L7,0 L0,3 Z" /><rect x="10" y="-2" width="1.6" height="8" /></g>}
+      {kind === 'target' && <g><circle cx="0" cy="0" r="9" fill="none" stroke={bg} strokeWidth="2.4" /><circle cx="0" cy="0" r="4" fill={bg} /></g>}
+      {kind === 'bulb' && <g fill={bg}><circle cx="0" cy="-2" r="7" /><rect x="-3.5" y="4" width="7" height="4" rx="1.5" /></g>}
+      {kind === 'briefcase' && <g fill={bg}><rect x="-9" y="-3" width="18" height="12" rx="2.5" /><path d="M-4,-3 L-4,-6 L4,-6 L4,-3" fill="none" stroke={bg} strokeWidth="2" /></g>}
+    </g>
+  );
+}
+
+/** Cover scene: isometric growth bars + report card + magnifier + floating badges.
+    Designed to sit on a dark/blue panel (whites and accents pop). */
+function IsoHero() {
+  return (
+    <svg viewBox="0 0 340 300" className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <defs>
+        <linearGradient id="iso-c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#FFFFFF" /><stop offset="1" stopColor="#EAF2FE" /></linearGradient>
+      </defs>
+      <ellipse cx="175" cy="244" rx="140" ry="40" fill="#fff" opacity="0.08" />
+      {[{ x: 110, h: 56, top: '#A86BE8', side: '#8B4FCE' }, { x: 164, h: 92, top: '#37B0E6', side: '#2A8FC4' }, { x: 218, h: 128, top: '#3FD389', side: '#2BB373' }].map((bar) => {
+        const baseY = 206; const topY = baseY - bar.h; const w = 40; const d = 18;
+        return (
+          <g key={bar.x}>
+            <path d={`M${bar.x},${topY} l${w},0 l${d},-${d * 0.6} l-${w},0 z`} fill={bar.top} opacity="0.95" />
+            <path d={`M${bar.x},${topY} l${w},0 l0,${bar.h} l-${w},0 z`} fill={bar.top} />
+            <path d={`M${bar.x + w},${topY} l${d},-${d * 0.6} l0,${bar.h} l-${d},${d * 0.6} z`} fill={bar.side} />
+          </g>
+        );
+      })}
+      {/* report card with checklist */}
+      <g transform="rotate(-8 78 110)">
+        <rect x="40" y="72" width="84" height="104" rx="11" fill="url(#iso-c)" stroke="#D8E4F6" />
+        <rect x="53" y="88" width="40" height="8" rx="4" fill="#2D7FF0" />
+        <rect x="53" y="106" width="58" height="5" rx="2.5" fill="#D7E2F2" /><rect x="53" y="118" width="58" height="5" rx="2.5" fill="#D7E2F2" />
+        <rect x="53" y="138" width="24" height="24" rx="7" fill="#F2C94C" /><path d="M59 150l4 4 9-10" stroke="#16314C" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <rect x="85" y="142" width="34" height="5" rx="2.5" fill="#D7E2F2" /><rect x="85" y="153" width="26" height="5" rx="2.5" fill="#D7E2F2" />
+      </g>
+      {/* magnifier */}
+      <g transform="translate(150 150)"><circle cx="0" cy="0" r="26" fill="#fff" opacity="0.18" /><circle cx="0" cy="0" r="26" fill="none" stroke="#fff" strokeWidth="5" /><rect x="18" y="18" width="30" height="9" rx="4.5" transform="rotate(45 18 18)" fill="#fff" /></g>
+      {/* floating career badges */}
+      <Badge x={60} y={46} bg="#F2994A" kind="bulb" />
+      <Badge x={296} y={70} bg="#27AE60" kind="cap" />
+      <Badge x={300} y={170} bg="#EB5757" kind="target" />
+      <Badge x={44} y={210} bg="#2D7FF0" kind="briefcase" />
+    </svg>
+  );
+}
+
+function DomainFitmentCard({ domain, rank, profile }: { domain: DomainFitment; rank: number; profile: PsychometricProfile }) {
+  const evidence = domainEvidence(domain, profile);
+  const accent = rank === 1 ? C.blue : rank === 2 ? '#2D9CDB' : '#27AE60';
+  return (
+    <Card pad="p-4">
+      <div className="grid grid-cols-[1.35fr_1fr] gap-5">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl text-[14px] font-extrabold text-white" style={{ background: accent }}>{rank}</span>
+            <div className="min-w-0 flex-1"><Eyebrow>Fitment domain #{rank}</Eyebrow><h3 className="text-[17px] font-bold leading-tight" style={{ color: C.ink }}>{domain.label}</h3></div>
+            <span className="rounded-lg px-3 py-1.5 text-[13px] font-bold" style={{ background: `${accent}14`, color: accent }}>{domain.score}<span className="text-[10px] font-semibold opacity-70">/100</span></span>
+          </div>
+          <p className="mt-2.5 text-[12px] leading-5" style={{ color: C.body }}>{domain.focus}</p>
+          <p className="mt-2 text-[11.5px] leading-5" style={{ color: C.muted }}>{domain.rationale}</p>
+        </div>
+        <div className="rounded-xl border p-3" style={{ borderColor: C.line, background: C.faint }}>
+          <Eyebrow>Why it fits — evidence</Eyebrow>
+          <div className="mt-2.5 space-y-2.5">
+            {evidence.map((bar) => (
+              <div key={bar.label}>
+                <div className="mb-1 flex items-center justify-between text-[11px]" style={{ color: C.body }}><span className="font-medium">{bar.label}</span><span className="font-bold tabular-nums" style={{ color: C.ink }}>{bar.value}</span></div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-white" style={{ border: `1px solid ${C.line}` }}><div className="h-full rounded-full" style={{ width: `${Math.max(4, bar.value)}%`, background: accent }} /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function PageFrame({ page, kicker, name, children }: { page: number; kicker: string; name: string; children: ReactNode }) {
+  return (
+    <section className="a4-page mx-auto flex flex-col overflow-hidden bg-white" style={{ width: '210mm', height: '297mm', breakBefore: page > 1 ? 'page' : 'auto' }}>
+      <header className="flex items-center justify-between px-10 pt-6 pb-3">
+        <div className="flex items-center gap-2.5"><Logo size={22} /><span className="text-[12px] font-semibold" style={{ color: C.muted }}>Career Discovery Report</span></div>
+        <span className="text-[11px] font-medium" style={{ color: C.muted }}>{kicker}</span>
+      </header>
+      <div className="flex-1 overflow-hidden px-10 pb-2">{children}</div>
+      <footer className="flex items-center justify-between border-t px-10 py-3 text-[10px]" style={{ borderColor: C.line, color: C.muted }}>
+        <div className="flex items-center gap-4"><span className="inline-flex items-center gap-1.5"><Phone className="h-3 w-3" />8977760443</span><span className="inline-flex items-center gap-1.5"><Mail className="h-3 w-3" />support@onegrasp.com</span></div>
+        <span className="font-medium">{name} · Page {page} of {TOTAL_PAGES}</span>
+      </footer>
     </section>
   );
 }
 
-/* ----------------------------- the document ----------------------------- */
+/* Reusable section page: hero + explainer + dominant card + Mindler bars + footer block. */
+function SectionPage({ page, kicker, name, theme, eyebrow, title, subtitle, whatIs, dominantTag, dominantTitle, dominantBody, bars, insight, footer }: {
+  page: number; kicker: string; name: string; theme: SectionTheme; eyebrow: string; title: string; subtitle: string;
+  whatIs: string; dominantTag: string; dominantTitle: string; dominantBody: string;
+  bars: { label: string; value: number }[]; insight?: ReactNode; footer: ReactNode;
+}) {
+  return (
+    <PageFrame page={page} kicker={kicker} name={name}>
+      <div className="flex h-full flex-col gap-3.5">
+        <SectionHero theme={theme} eyebrow={eyebrow} title={title} subtitle={subtitle} />
+        <p className="text-[12px] leading-5" style={{ color: C.body }}><b style={{ color: C.ink }}>What this measures: </b>{whatIs}</p>
+        <div className="grid grid-cols-[0.92fr_1.08fr] gap-4">
+          <DominantCard theme={theme} tag={dominantTag} title={dominantTitle} body={dominantBody} />
+          <MindlerBars items={bars} color={theme.color} />
+        </div>
+        {insight && <InsightBanner color={theme.color}>{insight}</InsightBanner>}
+        <div className="flex-1">{footer}</div>
+      </div>
+    </PageFrame>
+  );
+}
+
+/* ------------------------------ report ----------------------------- */
 
 export default function PsychometricReport({ profile }: { profile: PsychometricProfile }) {
-  const p = profile;
-  const generated = new Date(p.generatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const firstName = (p.name || 'Student').split(' ')[0];
-  const ints = p.intelligences ?? [];
-  const conf = p.confidence ?? { percent: 100, answered: 0, total: 0, label: 'High reliability' };
-  const stage = STAGE_BY_LABEL[p.matchLabel] ?? STAGE_BY_LABEL.Exploring;
-  const streams = streamMatch(p);
-  const eqAvg = p.eq.length ? Math.round(p.eq.reduce((s, e) => s + e.percent, 0) / p.eq.length) : 0;
-  const hasRecommendations = (p.topCareers?.length ?? 0) > 0 && (conf.answered ?? 0) > 0;
+  const confidence = confidenceFromProfile(profile);
+  const analytical = profile.analyticalBreakdown?.length ? profile.analyticalBreakdown : buildFallbackBreakdown(profile);
+  const sections = profile.sectionScores?.length ? profile.sectionScores : buildFallbackSections(profile, analytical);
+  const domains = (profile.domainFitments?.length ? profile.domainFitments : buildFallbackDomains(profile)).slice(0, 3);
 
-  const chosenTitle = hasRecommendations ? resolveCareerTitle(p.careerFocus, p.careerFocus) : '';
-  const chosenCareer = hasRecommendations ? (CAREER_LIBRARY.find((c) => c.title === chosenTitle) ?? CAREER_LIBRARY[0]) : null;
-  const detail = hasRecommendations ? getCareerDetail(chosenTitle) : null;
-  const salary = hasRecommendations && detail ? buildSalary(detail.salaryBase) : [];
-  const maxSalary = Math.max(...salary.map((s) => s.amount), 1);
+  const generated = new Date(profile.generatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const summary = buildExecutiveNarrative(profile, domains, sections, analytical, confidence);
+  const priorities = buildPriorityActions(profile, domains, sections, analytical);
+  const strongestSection = [...sections].sort((a, b) => b.score - a.score)[0];
+  const weakestSection = [...sections].sort((a, b) => a.score - b.score)[0];
+  const eqAverage = clampPercent(average(profile.eq.map((i) => i.percent)));
+  const topCapabilities = profile.skills.slice(0, 6);
+  const topIntelligences = (profile.intelligences ?? []).slice(0, 8);
+  const sectionById = Object.fromEntries(sections.map((s) => [s.id, s])) as Record<string, SectionScore>;
+  const clusters = [...profile.clusters].sort((a, b) => b.percent - a.percent).slice(0, 8);
+  const careers = (profile.topCareers ?? []).slice(0, 8);
+  const traitLetters = (profile.mbtiType || '').split('');
+  const streamDomains = domains.slice(0, 2).map((d) => ({ domain: d, stream: DOMAIN_STREAMS[d.key] })).filter((x) => x.stream);
+  const verdictColor: Record<string, string> = { 'Top Choice': C.green, 'Good Choice': C.blue, Optional: '#2D9CDB', Develop: '#F2994A', Avoid: C.red };
+  const SkillRingColors = ['#2D7FF0', '#27AE60', '#11998E', '#9B51E0', '#F2994A', '#2D9CDB', '#EB5757', '#16314C'];
 
-  // hub framework nodes
-  const hubNodes = [
-    { emoji: '🧩', label: 'Personality', value: p.mbtiType, color: C.personality, pos: { left: '50%', top: '12%' } },
-    { emoji: '🎯', label: 'Interests', value: p.topInterests[0] ?? '—', color: C.interest, pos: { left: '85%', top: '31%' } },
-    { emoji: '💡', label: 'Intelligence', value: (p.dominantIntelligence ?? '—').split(' (')[0], color: C.intelligence, pos: { left: '85%', top: '69%' } },
-    { emoji: '🛠️', label: 'Skills', value: `${p.overallSkills}%`, color: C.skill, pos: { left: '50%', top: '88%' } },
-    { emoji: '⭐', label: 'Motivators', value: p.motivators[0]?.label ?? '—', color: C.motivator, pos: { left: '15%', top: '69%' } },
-    { emoji: '❤️', label: 'Emotional', value: `${eqAvg}%`, color: C.eq, pos: { left: '15%', top: '31%' } },
-  ];
-  const nodeXY = (pos: { left: string; top: string }) => ({ x: (parseFloat(pos.left) / 100) * 320, y: (parseFloat(pos.top) / 100) * 320 });
+  // top domain "career match" fit bars
+  const topDomain = domains[0];
+  const matchEvidence = topDomain ? domainEvidence(topDomain, profile) : [];
+  const matchBars = topDomain ? [
+    { label: 'Interest fit', value: matchEvidence[0]?.value ?? 0 },
+    { label: 'Aptitude / capability', value: matchEvidence[1]?.value ?? 0 },
+    { label: 'Ecosystem alignment', value: matchEvidence[2]?.value ?? 0 },
+    { label: 'Personality fit', value: sectionById.personality?.score ?? 0 },
+    { label: 'Emotional quotient', value: eqAverage },
+  ] : [];
 
   return (
-    <div className="min-h-screen bg-bg">
+    <div className="min-h-screen" style={{ background: C.page }}>
       <style>{`
-        @page { size: A4; margin: 10mm; }
-        body { background: #f6f3f0; }
-        .a4-page { margin-bottom: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        @page { size: A4; margin: 0; }
+        body { background: ${C.page}; }
+        .a4-page { margin-bottom: 16px; box-shadow: 0 20px 44px rgba(22,36,59,0.14); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        @media print {
-          body { background: white; }
-          .report-topbar, .report-toolbar { display: none !important; }
-          .a4-page { margin: 0 auto !important; box-shadow: none !important; }
-        }
+        @media print { body { background: white; } .report-toolbar { display: none !important; } .a4-page { margin: 0 auto !important; box-shadow: none !important; } }
       `}</style>
 
-      <header className="report-topbar bg-white border-b border-line sticky top-0 z-40">
-        <div className="max-w-[230mm] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+      <header className="report-toolbar sticky top-0 z-40 border-b bg-white/95 backdrop-blur" style={{ borderColor: C.line }}>
+        <div className="mx-auto flex h-16 max-w-[230mm] items-center justify-between gap-3 px-4 sm:px-6">
           <Link href="/dashboard"><Logo size={30} /></Link>
           <div className="flex items-center gap-2">
-            <Link href="/dashboard" className="inline-flex items-center gap-2 border border-line text-ink-2 text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-bg transition-colors">
-              <LayoutDashboard className="w-4 h-4" /><span className="hidden sm:inline">Back to Dashboard</span><span className="sm:hidden">Dashboard</span>
-            </Link>
-            <button onClick={() => window.print()} className="inline-flex items-center gap-2 bg-red text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-glow">
-              <Printer className="w-4 h-4" /><span className="hidden sm:inline">Save as PDF</span><span className="sm:hidden">PDF</span>
-            </button>
+            <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-[#F4F8FD]" style={{ borderColor: C.line, color: C.body }}><LayoutDashboard className="h-4 w-4" /><span className="hidden sm:inline">Back to Dashboard</span><span className="sm:hidden">Dashboard</span></Link>
+            <button onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow" style={{ background: C.blue }}><Printer className="h-4 w-4" /><span className="hidden sm:inline">Save as PDF</span><span className="sm:hidden">PDF</span></button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-[230mm] mx-auto px-4 sm:px-6 py-6 space-y-3">
+      <div className="mx-auto max-w-[230mm] space-y-4 px-4 py-6 sm:px-6">
 
-        {/* ---------- PAGE 1 · COVER ---------- */}
-        <Page n={1} name={p.name}>
-          <div className="rounded-3xl p-8 text-white relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${C.personality}, ${C.motivator})` }}>
-            <div className="absolute -right-10 -top-10 w-48 h-48 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-            <div className="absolute -right-4 top-24 w-24 h-24 rounded-full" style={{ background: 'rgba(255,255,255,0.10)' }} />
-            <div className="relative">
-              <span className="inline-flex items-center gap-1.5 text-[12px] font-bold bg-white/20 rounded-full px-3 py-1"><Sparkles className="w-3.5 h-3.5" /> My Career Discovery</span>
-              <h1 className="text-5xl font-extrabold mt-4 leading-tight">Hi {firstName}! 👋</h1>
-              <p className="text-white/90 mt-2 text-lg">Here is what makes you <b>uniquely awesome</b> — and the careers that fit you best.</p>
-              <p className="text-white/70 text-sm mt-6">Prepared on {generated}</p>
+        {/* ===== PAGE 1 — COVER ===== */}
+        <PageFrame page={1} kicker="Prepared by OneGrasp" name={profile.name}>
+          <div className="flex h-full flex-col gap-5">
+            {/* bold colored hero band */}
+            <div className="relative overflow-hidden rounded-3xl" style={{ background: `linear-gradient(135deg, ${C.blue} 0%, #2360C4 55%, ${C.navy} 100%)` }}>
+              <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 600 320" preserveAspectRatio="none" aria-hidden>
+                <defs><pattern id="cov-dots" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.6" fill="#fff" opacity="0.10" /></pattern></defs>
+                <rect width="600" height="320" fill="url(#cov-dots)" />
+                <path d="M0,250 C120,210 180,300 320,250 C440,210 520,280 600,240 L600,320 L0,320 Z" fill="#fff" opacity="0.05" />
+                <circle cx="70" cy="60" r="80" fill="#fff" opacity="0.05" />
+              </svg>
+              <div className="relative grid grid-cols-[1.05fr_0.95fr] gap-4 px-8 py-7">
+                <div className="flex flex-col justify-center">
+                  <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur"><Sparkles className="h-3.5 w-3.5 text-[#F2C94C]" /> Psychometric Career Assessment</span>
+                  <h1 className="mt-4 text-[44px] font-extrabold leading-[1.02] text-white">Career<br />Discovery<br /><span style={{ color: C.yellow }}>Report</span></h1>
+                  <p className="mt-3 max-w-[340px] text-[12.5px] leading-5 text-white/85">Deep insights into your holistic profile and recommended career domains, mapped from how you actually answered across six lenses.</p>
+                </div>
+                <div className="relative h-[250px]"><IsoHero /></div>
+              </div>
+            </div>
+
+            {/* name + details card */}
+            <div className="grid grid-cols-[1fr_auto] items-center gap-6 rounded-2xl border p-5" style={{ borderColor: C.line, background: C.faint }}>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                <div><Eyebrow>Prepared for</Eyebrow><p className="mt-1 text-[24px] font-extrabold" style={{ color: C.ink }}>{profile.name}</p></div>
+                <div><Eyebrow>Generated</Eyebrow><p className="mt-1 text-[14px] font-semibold" style={{ color: C.body }}>{generated}</p></div>
+                <div><Eyebrow>Reliability</Eyebrow><p className="mt-1 text-[14px] font-semibold" style={{ color: C.body }}>{confidence.label} · {confidence.answered}/{confidence.total} answered</p></div>
+                <div><Eyebrow>Top domain</Eyebrow><p className="mt-1 text-[14px] font-semibold" style={{ color: C.body }}>{domains[0]?.label ?? '—'}</p></div>
+              </div>
+              <div className="flex items-center gap-3 border-l pl-6" style={{ borderColor: C.line }}><Donut value={profile.overallScore} caption="Fit index" /></div>
+            </div>
+
+            <div className="flex-1">
+              <Eyebrow>Your top 3 fitment domains</Eyebrow>
+              <div className="mt-2.5 grid grid-cols-3 gap-3">
+                {domains.map((domain, index) => {
+                  const accent = index === 0 ? C.blue : index === 1 ? '#2D9CDB' : '#27AE60';
+                  const Icon = [Target, Sparkles, TrendingUp][index] ?? Target;
+                  return (
+                    <div key={domain.key} className="rounded-2xl border p-4" style={{ borderColor: C.line, borderTop: `4px solid ${accent}` }}>
+                      <div className="flex items-center justify-between"><span className="flex h-8 w-8 items-center justify-center rounded-lg text-white" style={{ background: accent }}><Icon className="h-4 w-4" /></span><span className="rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: `${accent}14`, color: accent }}>{domain.score}</span></div>
+                      <p className="mt-2.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: accent }}>Rank #{index + 1}</p>
+                      <p className="mt-0.5 text-[13.5px] font-bold leading-tight" style={{ color: C.ink }}>{domain.label}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
+        </PageFrame>
 
-          <div className="grid grid-cols-3 gap-3 mt-5">
-            <StatCard emoji={stage.emoji} label="Your stage" value={stage.stage} color={C.personality} />
-            <StatCard emoji="✅" label="Report reliability" value={`${conf.percent}%`} color={C.skill} />
-            <StatCard emoji="⭐" label="Readiness score" value={`${p.overallScore}/100`} color={C.interest} />
+        {/* ===== PAGE 2 — FRAMEWORK ===== */}
+        <PageFrame page={2} kicker="The discovery framework" name={profile.name}>
+          <div className="flex h-full flex-col">
+            <div>
+              <Eyebrow color={C.blue}>How we read you</Eyebrow>
+              <h2 className="mt-1 text-[26px] font-extrabold" style={{ color: C.ink }}>Six lenses, read together</h2>
+              <p className="mt-2 max-w-[640px] text-[13px] leading-6" style={{ color: C.body }}>Your report combines six independent lenses into one integrated picture. No single answer decides your direction — the lenses are weighed together to recommend broad domains, not job titles.</p>
+            </div>
+            <div className="mt-3 grid flex-1 grid-cols-[0.82fr_1.18fr] gap-5">
+              <Card pad="p-4" className="flex flex-col">
+                <Eyebrow>Your mind, mapped</Eyebrow>
+                <div className="relative my-2 flex-1"><HeadIllo /></div>
+                <div className="rounded-xl p-3 text-center text-white" style={{ background: `linear-gradient(150deg, ${C.blue}, ${C.navy})` }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70">Overall fit index</p>
+                  <p className="text-[26px] font-extrabold leading-tight">{profile.overallScore}<span className="text-[13px] font-semibold text-white/70">/100</span></p>
+                </div>
+              </Card>
+              <div className="flex flex-col gap-3">
+                <Card pad="p-3.5">
+                  <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+                    <div className="h-[140px]"><RadarChart axes={LENSES.map((l) => ({ label: l.label, value: sectionById[l.id]?.score ?? 0 }))} color={C.blue} size={140} /></div>
+                    <div><Eyebrow color={C.blue}>Executive reading</Eyebrow><p className="mt-1.5 text-[11.5px] leading-5" style={{ color: C.body }}>{summary}</p></div>
+                  </div>
+                </Card>
+                <Card pad="p-3.5" className="flex-1">
+                  <Eyebrow color={C.blue}>The six lenses</Eyebrow>
+                  <div className="mt-2.5 space-y-2">
+                    {LENSES.map((lens) => {
+                      const theme = themeFor(lens.id); const Icon = theme.icon; const score = sectionById[lens.id]?.score ?? 0;
+                      return (
+                        <div key={lens.id} className="flex items-center gap-3">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: theme.soft, color: theme.color }}><Icon style={{ width: 16, height: 16 }} /></span>
+                          <div className="w-[120px] shrink-0"><p className="text-[12px] font-bold leading-tight" style={{ color: C.ink }}>{lens.label}</p><p className="text-[9.5px] leading-tight" style={{ color: C.muted }}>{lens.caption}</p></div>
+                          <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: C.faint }}><div className="h-full rounded-full" style={{ width: `${Math.max(4, score)}%`, background: theme.color }} /></div>
+                          <span className="w-8 shrink-0 text-right text-[12px] font-bold tabular-nums" style={{ color: C.ink }}>{score}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+                <div className="grid grid-cols-3 gap-3">
+                  <Card pad="p-3"><div className="flex items-center gap-1.5"><TrendingUp className="h-3.5 w-3.5" style={{ color: C.green }} /><Eyebrow>Strongest</Eyebrow></div><p className="mt-1 text-[12.5px] font-bold leading-tight" style={{ color: C.ink }}>{strongestSection?.title ?? '—'}</p></Card>
+                  <Card pad="p-3"><div className="flex items-center gap-1.5"><Target className="h-3.5 w-3.5" style={{ color: C.red }} /><Eyebrow>Next focus</Eyebrow></div><p className="mt-1 text-[12.5px] font-bold leading-tight" style={{ color: C.ink }}>{weakestSection?.title ?? '—'}</p></Card>
+                  <Card pad="p-3"><div className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" style={{ color: C.blue }} /><Eyebrow>Reliability</Eyebrow></div><p className="mt-1 text-[12.5px] font-bold leading-tight" style={{ color: C.ink }}>{confidence.percent}% answered</p></Card>
+                </div>
+              </div>
+            </div>
           </div>
+        </PageFrame>
 
-          <div className="mt-5 rounded-2xl border border-line p-5">
-            <p className="text-[13px] font-extrabold text-ink mb-2">What is inside this report?</p>
-            <div className="grid grid-cols-3 gap-2.5">
-              {[
-                ['🧩', 'Your Personality'], ['🎯', 'Your Interests'], ['💡', 'Your Intelligences'],
-                ['🛠️', 'Your Skills'], ['⭐', 'Your Motivators'], ['🧠', 'Learning & Emotions'],
-                ['🗂️', 'Career Clusters'], ['📚', 'Best Subjects'], ['🚀', 'Best-Fit Careers'],
-              ].map(([e, t]) => (
-                <div key={t} className="flex items-center gap-2 rounded-xl bg-bg border border-line px-3 py-2">
-                  <span className="text-lg">{e}</span><span className="text-[11.5px] font-bold text-ink-2">{t}</span>
+        {/* ===== PAGE 3 — ABOUT + JOURNEY ===== */}
+        <PageFrame page={3} kicker="About this report" name={profile.name}>
+          <div className="flex h-full flex-col gap-4">
+            <SectionHero theme={SECTION_THEME.clusters} eyebrow="Your career planning journey" title={`Welcome, ${firstName(profile.name)}`} subtitle="A scientific, evidence-based map of how you think, what excites you, and where you fit." />
+            <Card pad="p-4"><Eyebrow color={C.blue}>About this report</Eyebrow><p className="mt-2 text-[13px] leading-6" style={{ color: C.body }}>Congratulations on completing your assessment. This report analyses your <b>personality, interests, motivators, learning style, intelligences and reasoning</b> — everything here is derived only from your own answers. We use it to recommend broad, future-ready <b>domains</b> rather than narrow job titles, so you keep your options open while moving in the right direction.</p></Card>
+            <div>
+              <Eyebrow color={C.blue}>Our 5-step career planning framework</Eyebrow>
+              <div className="mt-2.5 grid grid-cols-5 gap-3">
+                {[{ n: 1, t: 'Career Analysis', icon: Search }, { n: 2, t: 'Best Options', icon: Layers }, { n: 3, t: 'Educational Plan', icon: GraduationCap }, { n: 4, t: 'Execution Plan', icon: Rocket }, { n: 5, t: 'Counselling', icon: ClipboardCheck }].map((step) => {
+                  const Icon = step.icon;
+                  return <div key={step.n} className="rounded-2xl p-3.5 text-center text-white" style={{ background: step.n % 2 ? `linear-gradient(150deg, ${C.blue}, ${C.navy})` : `linear-gradient(150deg, #2D9CDB, ${C.navy})` }}><Icon className="mx-auto h-5 w-5" /><p className="mt-2 text-[18px] font-extrabold" style={{ color: C.yellow }}>{step.n}</p><p className="text-[11px] font-semibold leading-tight">{step.t}</p></div>;
+                })}
+              </div>
+            </div>
+            <Card pad="p-4" className="flex-1">
+              <Eyebrow color={C.blue}>What’s inside</Eyebrow>
+              <div className="mt-3 grid grid-cols-3 gap-3">
+                {LENSES.map((lens) => {
+                  const theme = themeFor(lens.id); const Icon = theme.icon; const score = sectionById[lens.id]?.score ?? 0;
+                  return <div key={lens.id} className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: C.line }}><span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: theme.soft, color: theme.color }}><Icon style={{ width: 18, height: 18 }} /></span><div className="min-w-0"><p className="truncate text-[12.5px] font-bold" style={{ color: C.ink }}>{lens.label}</p><p className="text-[10.5px]" style={{ color: C.muted }}>{score}/100 · {bandLabel(score)}</p></div></div>;
+                })}
+              </div>
+              <div className="mt-3 rounded-xl border p-3" style={{ borderColor: C.line, background: C.faint }}><p className="text-[11.5px] leading-5" style={{ color: C.body }}><b style={{ color: C.ink }}>How to read scores:</b> every bar sits on a <b>Low / Medium / High</b> track. Higher isn’t always “better” — it shows where your signal is strongest. Use the strengths to lean in, and the develop notes to grow.</p></div>
+            </Card>
+          </div>
+        </PageFrame>
+
+        {/* ===== PAGE 4 — PERSONALITY ===== */}
+        <PageFrame page={4} kicker="Lens 1 · Personality" name={profile.name}>
+          <div className="flex h-full flex-col gap-4">
+            <SectionHero theme={SECTION_THEME.personality} eyebrow="Career personality" title="How you think, decide & work" subtitle="Your consistent behaviour patterns and natural decision style." />
+            <div className="grid grid-cols-[0.92fr_1.08fr] gap-4">
+              <DominantCard theme={SECTION_THEME.personality} tag="Your personality type" title={`${profile.mbtiType} — ${traitLetters.map((l) => TRAIT_NAMES[l] ?? l).join(', ')}`} body={`These are neutral decision-style signals, not stereotype labels. ${sectionById.personality?.strengths?.[0] ?? 'Your preferences are clearest on the axes shown.'}.`} />
+              <div className="overflow-hidden rounded-xl border" style={{ borderColor: C.line }}>
+                <div className="px-4 py-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-white" style={{ background: SECTION_THEME.personality.color }}>Your decision-style axes</div>
+                <div className="space-y-2.5 p-4">
+                  {profile.mbtiAxes.map((axis) => (
+                    <div key={axis.axis}>
+                      <div className="flex items-center justify-between text-[10.5px] font-medium" style={{ color: C.muted }}><span>{axis.left}</span><span>{axis.right}</span></div>
+                      <div className="relative mt-1 h-2.5 overflow-hidden rounded-full" style={{ background: C.faint }}><span className="absolute inset-y-0" style={{ left: '50%', width: 1, background: '#DCE4F0' }} /><div className="h-full rounded-full" style={{ width: `${axis.rightPct}%`, background: SECTION_THEME.personality.color }} /></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="grid flex-1 grid-cols-4 gap-2.5">
+              {traitLetters.map((letter, i) => (
+                <div key={`${letter}-${i}`} className="flex flex-col rounded-xl border p-3" style={{ borderColor: C.line }}>
+                  <div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg text-[13px] font-extrabold text-white" style={{ background: SECTION_THEME.personality.color }}>{letter}</span><p className="text-[12px] font-bold" style={{ color: C.ink }}>{TRAIT_NAMES[letter] ?? letter}</p></div>
+                  <div className="mt-2"><ScaleDots value={profile.mbtiAxes[i] ? profile.mbtiAxes[i].rightPct : 60} color={SECTION_THEME.personality.color} /></div>
+                  <p className="mt-2 text-[10px] leading-4" style={{ color: C.body }}>{MBTI_DESC[letter]?.[0] ?? ''}</p>
                 </div>
               ))}
             </div>
+            <StrengthWeakness strengths={sectionById.personality?.strengths ?? profile.strengths} weaknesses={sectionById.personality?.weaknesses ?? []} />
           </div>
+        </PageFrame>
 
-          {hasRecommendations && (
-            <div className="mt-4 rounded-2xl p-4 text-white flex items-center gap-3" style={{ background: C.skill }}>
-              <Target className="w-6 h-6 shrink-0" />
-              <p className="text-[13px]"><b>Your top career match:</b> {p.topCareers[0]?.title} — {p.topCareers[0]?.match}% fit!</p>
-            </div>
-          )}
-        </Page>
-
-        {/* ---------- PAGE 2 · FRAMEWORK HUB ---------- */}
-        <Page n={2} name={p.name}>
-          <H>Your Career DNA — the 6 building blocks</H>
-          <p className="text-[12px] text-ink-3 mb-3">We measured 6 parts of who you are. Together they point to the careers that will make you happy and successful.</p>
-          <div className="relative mx-auto" style={{ width: 320, height: 320 }}>
-            <svg viewBox="0 0 320 320" className="absolute inset-0 w-full h-full">
-              {hubNodes.map((nd) => { const { x, y } = nodeXY(nd.pos); return <line key={nd.label} x1={160} y1={160} x2={x} y2={y} stroke={nd.color} strokeWidth={2} strokeOpacity={0.4} />; })}
-            </svg>
-            <div className="absolute rounded-full flex flex-col items-center justify-center text-white text-center shadow-lg"
-              style={{ left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 96, height: 96, background: `linear-gradient(135deg, ${C.personality}, ${C.motivator})` }}>
-              <span className="text-2xl">🧬</span><span className="text-[10px] font-extrabold leading-tight mt-0.5">YOUR<br />CAREER DNA</span>
-            </div>
-            {hubNodes.map((nd) => (
-              <div key={nd.label} className="absolute flex flex-col items-center" style={{ left: nd.pos.left, top: nd.pos.top, transform: 'translate(-50%,-50%)' }}>
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-md" style={{ background: '#fff', border: `2px solid ${nd.color}` }}>{nd.emoji}</div>
-                <span className="mt-1 text-[10px] font-extrabold text-ink">{nd.label}</span>
-                <span className="text-[9.5px] font-bold leading-tight text-center max-w-[90px] truncate" style={{ color: nd.color }}>{nd.value}</span>
+        {/* ===== PAGE 5 — INTERESTS ===== */}
+        <PageFrame page={5} kicker="Lens 2 · Interests" name={profile.name}>
+          <div className="flex h-full flex-col gap-3.5">
+            <SectionHero theme={SECTION_THEME.interests} eyebrow="Career interests (RIASEC)" title="What excites & fascinates you" subtitle="The activities and work areas you are naturally drawn to and stay engaged with." />
+            <p className="text-[12px] leading-5" style={{ color: C.body }}><b style={{ color: C.ink }}>What this measures: </b>{SECTION_MEANING.interests}</p>
+            <div className="grid grid-cols-[0.82fr_1.18fr] gap-4">
+              <Card pad="p-3" className="flex flex-col">
+                <Eyebrow color={SECTION_THEME.interests.color}>Your interest shape</Eyebrow>
+                <div className="mt-1 h-[196px] w-full"><RadarChart axes={profile.interests.map((i) => ({ label: i.label, value: i.percent }))} color={SECTION_THEME.interests.color} /></div>
+              </Card>
+              <div className="flex flex-col gap-3">
+                <DominantCard theme={SECTION_THEME.interests} tag="Your dominant interests" title={profile.topInterests.slice(0, 2).join(' + ') || (profile.interests[0]?.label ?? '—')} body={`You are most drawn to ${(profile.topInterests.slice(0, 2).join(' and ') || profile.interests[0]?.label || 'these areas').toLowerCase()}. These themes shape the domains you’ll find most fulfilling.`} />
+                <MindlerBars items={profile.interests.map((i) => ({ label: i.label, value: i.percent }))} color={SECTION_THEME.interests.color} />
               </div>
-            ))}
-          </div>
-          <div className="mt-4 rounded-2xl border p-4" style={{ borderColor: `${stage.stage ? C.personality : RED}33`, background: `${C.personality}0D` }}>
-            <p className="text-[13px] font-extrabold text-ink mb-1">{stage.emoji} You are at the “{stage.stage}” stage</p>
-            <p className="text-[12px] text-ink-2">{stage.note}</p>
-          </div>
-        </Page>
-
-        {/* ---------- PAGE 3 · PERSONALITY OVERVIEW ---------- */}
-        <Page n={3} name={p.name}>
-          <H color={C.personality}>Your Personality 🧩</H>
-          <p className="text-[12px] text-ink-3 mb-3">Your personality is your natural style — how you get energy, take in information, decide and plan.</p>
-          <div className="text-center mb-4">
-            <span className="inline-block text-4xl font-extrabold tracking-[0.3em] px-6 py-2 rounded-2xl text-white" style={{ background: C.personality }}>{p.mbtiType}</span>
-            <p className="text-[12px] text-ink-3 mt-2">{p.mbtiAxes.map((a) => a.dominant).join(' · ')}</p>
-          </div>
-          <div className="grid grid-cols-4 gap-2.5 mb-4">
-            {p.mbtiAxes.map((a) => {
-              const letter = letterFor(a);
-              const pct = Math.max(a.leftPct, a.rightPct);
-              return <TraitTile key={a.axis} emoji={MBTI_EMOJI[letter] ?? '⭐'} title={a.dominant} sub={`${pct}%`} color={C.personality} />;
-            })}
-          </div>
-          <div className="rounded-2xl border border-line p-4 space-y-3">
-            {p.mbtiAxes.map((a) => (
-              <div key={a.axis}>
-                <div className="flex justify-between text-[11px] mb-1">
-                  <span className={a.dominant === a.left ? 'font-extrabold text-ink' : 'text-ink-4'}>{a.left}</span>
-                  <span className="font-bold" style={{ color: C.personality }}>{Math.max(a.leftPct, a.rightPct)}% {a.dominant}</span>
-                  <span className={a.dominant === a.right ? 'font-extrabold text-ink' : 'text-ink-4'}>{a.right}</span>
-                </div>
-                <div className="h-3 rounded-full overflow-hidden flex" style={{ background: `${C.personality}22` }}>
-                  <div style={{ width: `${a.leftPct}%`, background: a.dominant === a.left ? C.personality : `${C.personality}55` }} />
-                  <div style={{ width: `${a.rightPct}%`, background: a.dominant === a.right ? C.personality : `${C.personality}55` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </Page>
-
-        {/* ---------- PAGE 4 · PERSONALITY IN DETAIL ---------- */}
-        <Page n={4} name={p.name}>
-          <H color={C.personality}>Your Personality in detail</H>
-          <div className="space-y-3">
-            {DIMS.map((dim) => {
-              const a = p.mbtiAxes.find((x) => x.axis === dim.axis)!;
-              const letter = letterFor(a);
-              const pct = Math.max(a.leftPct, a.rightPct);
-              return (
-                <div key={dim.axis} className="rounded-2xl border border-line p-3">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: `${C.personality}1A` }}>{MBTI_EMOJI[letter]}</span>
-                    <div className="flex-1">
-                      <p className="text-[13px] font-extrabold text-ink">{a.dominant} <span className="text-ink-4 font-normal">· {dim.title}</span></p>
-                    </div>
-                    <ScaleChips score={score19(pct)} color={C.personality} />
-                  </div>
-                  <DimBox color={C.personality}
-                    meaning={(EXTRA_PERSONALITY[letter] ?? [''])[0]}
-                    analysis={(MBTI_DESC[letter] ?? ['A natural part of how you work.'])[0]}
-                    development={DEV_PERSONALITY[letter] ?? ['Keep practising and stay curious.']} />
-                </div>
-              );
-            })}
-          </div>
-        </Page>
-
-        {/* ---------- PAGE 5 · INTERESTS ---------- */}
-        <Page n={5} name={p.name}>
-          <H color={C.interest}>Your Interests 🎯</H>
-          <p className="text-[12px] text-ink-3 mb-3">Interests are the activities you naturally enjoy. The more a bar leans towards <b>High</b>, the more it excites you.</p>
-          <ZoneChart data={p.interests} color={C.interest} labelWidth={120} />
-          <p className="text-[12px] font-extrabold text-ink mt-4 mb-2">Your top 3 interest areas</p>
-          <div className="grid grid-cols-3 gap-2.5">
-            {p.interests.slice(0, 3).map((b) => (
-              <TraitTile key={b.key} emoji={RIASEC_EMOJI[b.key] ?? '⭐'} title={b.label} sub={`${b.percent}% · ${level(b.percent)}`} color={C.interest} />
-            ))}
-          </div>
-          <div className="mt-4 space-y-2">
-            {p.interests.slice(0, 2).map((b) => (
-              <div key={b.key} className="rounded-xl border border-line p-3">
-                <p className="text-[12px] font-extrabold text-ink mb-1">{RIASEC_EMOJI[b.key]} {b.label}</p>
-                <Bullets color={C.interest} items={INTEREST_DESC[b.label] ?? ['A strong interest area worth exploring.']} />
-              </div>
-            ))}
-          </div>
-        </Page>
-
-        {/* ---------- PAGE 6 · MULTIPLE INTELLIGENCES ---------- */}
-        <Page n={6} name={p.name}>
-          <H color={C.intelligence}>Your Smarts 💡 (Multiple Intelligences)</H>
-          <p className="text-[12px] text-ink-3 mb-3">Everyone is smart in different ways! Here are your 8 kinds of smart. Your strongest is <b>{p.dominantIntelligence}</b>.</p>
-          <ZoneChart data={ints} color={C.intelligence} labelWidth={185} />
-          <p className="text-[12px] font-extrabold text-ink mt-4 mb-2">Your top 3 kinds of smart</p>
-          <div className="grid grid-cols-3 gap-2.5">
-            {ints.slice(0, 3).map((b) => (
-              <TraitTile key={b.key} emoji={INT_EMOJI[b.key] ?? '⭐'} title={b.label.split(' (')[0]} sub={`${b.percent}% · ${b.level}`} color={C.intelligence} />
-            ))}
-          </div>
-        </Page>
-
-        {/* ---------- PAGE 7 · SKILLS & ABILITIES ---------- */}
-        <Page n={7} name={p.name}>
-          <H color={C.skill}>Your Skills &amp; Abilities 🛠️</H>
-          <div className="flex items-center gap-3 mb-3">
-            <Donut percent={p.overallSkills} label="Overall" color={C.skill} />
-            <p className="text-[12px] text-ink-2">Your overall skill score is <b style={{ color: C.skill }}>{p.overallSkills}% ({level(p.overallSkills)})</b>. The bars below show where you shine and where you can grow.</p>
-          </div>
-          <ZoneChart data={p.skills.map((s) => ({ key: s.key, label: s.label, percent: s.percent }))} color={C.skill} labelWidth={185} />
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-xl border border-line p-3">
-              <p className="text-[11px] font-extrabold text-ink mb-1">💪 Your strengths</p>
-              <Bullets color={C.skill} items={p.skills.slice(0, 3).map((s) => `${s.label} — ${s.rating}`)} />
             </div>
-            <div className="rounded-xl border border-line p-3">
-              <p className="text-[11px] font-extrabold text-ink mb-1">🌱 Grow these</p>
-              <Bullets color={C.interest} items={p.skills.slice(-2).map((s) => `${s.label} — ${s.rating}`)} />
+            <InsightBanner color={SECTION_THEME.interests.color}>Your shape leans toward <b>{(profile.topInterests.slice(0, 2).join(' and ') || profile.interests[0]?.label || 'a few themes').toLowerCase()}</b>. Domains that blend these — like {domains[0]?.label.toLowerCase() ?? 'your top domain'} — will keep you genuinely engaged, while the smallest points on the shape are areas you can comfortably deprioritise.</InsightBanner>
+            <div className="flex-1"><StrengthWeakness strengths={sectionById.interests?.strengths ?? []} weaknesses={sectionById.interests?.weaknesses ?? []} /></div>
+          </div>
+        </PageFrame>
+
+        {/* ===== PAGE 6 — MOTIVATORS ===== */}
+        <SectionPage page={6} kicker="Lens 3 · Motivators" name={profile.name} theme={SECTION_THEME.motivators}
+          eyebrow="Career motivators & values" title="What drives your decisions" subtitle="The values that make work feel satisfying and keep you energised long-term."
+          whatIs={SECTION_MEANING.motivators}
+          dominantTag="Your top drivers" dominantTitle={profile.motivators.slice(0, 2).map((m) => m.label).join(' + ')}
+          dominantBody={`You work best when a role offers ${profile.motivators.slice(0, 2).map((m) => m.label.toLowerCase()).join(' and ')}. Protect these and a career will feel meaningful; ${(profile.motivators.slice(-1)[0]?.label ?? 'others').toLowerCase()} matters less to you day-to-day.`}
+          bars={profile.motivators.map((m) => ({ label: m.label, value: m.percent }))}
+          insight={`When you weigh up options, score each one on ${profile.motivators.slice(0, 2).map((m) => m.label.toLowerCase()).join(' and ')} first — those are the conditions that will keep you engaged for years, not just months.`}
+          footer={<StrengthWeakness strengths={sectionById.motivators?.strengths ?? []} weaknesses={sectionById.motivators?.weaknesses ?? []} />}
+        />
+
+        {/* ===== PAGE 7 — LEARNING ===== */}
+        <SectionPage page={7} kicker="Lens 4 · Learning style" name={profile.name} theme={SECTION_THEME.learning}
+          eyebrow="Learning style (VARK)" title="How you learn best" subtitle="The channels through which you absorb and remember new information most efficiently."
+          whatIs={SECTION_MEANING.learning}
+          dominantTag="Your dominant channel" dominantTitle={profile.dominantLearning}
+          dominantBody={`Lead with ${profile.dominantLearning.toLowerCase()} methods, then reinforce with ${(profile.learning[1]?.label ?? 'your second channel').toLowerCase()}. Mixing your top two channels makes new material stick far faster than re-reading alone.`}
+          bars={profile.learning.map((l) => ({ label: l.label, value: l.percent }))}
+          insight={`Before your next exam, convert your notes into a ${profile.dominantLearning.toLowerCase().replace(' learning', '')} format — it matches how your brain encodes information, so you'll revise in less time.`}
+          footer={<StrengthWeakness strengths={sectionById.learning?.strengths ?? []} weaknesses={sectionById.learning?.weaknesses ?? []} />}
+        />
+
+        {/* ===== PAGE 8 — SKILLS ===== */}
+        <PageFrame page={8} kicker="Skills & abilities" name={profile.name}>
+          <div className="flex h-full flex-col gap-4">
+            <SectionHero theme={SECTION_THEME.analytical} eyebrow="Skills & abilities" title="Your natural ability profile" subtitle="A snapshot of the abilities you can build on and the ones worth strengthening." />
+            <Card pad="p-4">
+              <div className="flex items-center justify-between"><Eyebrow color={C.blue}>Overall skills score</Eyebrow><span className="text-[12px] font-bold" style={{ color: C.blue }}>{profile.overallSkills}% · {bandLabel(profile.overallSkills)}</span></div>
+              <div className="mt-2 h-3 w-full overflow-hidden rounded-full" style={{ background: C.faint }}><div className="h-full rounded-full" style={{ width: `${profile.overallSkills}%`, background: `linear-gradient(90deg, #9B51E0, ${C.blue})` }} /></div>
+            </Card>
+            <div className="grid flex-1 grid-cols-[0.86fr_1.14fr] gap-4">
+              <Card pad="p-3" className="flex flex-col"><Eyebrow color={C.blue}>Your ability shape</Eyebrow><div className="mt-1 flex-1"><RadarChart axes={profile.skills.slice(0, 8).map((s) => ({ label: trimSkillLabel(s.label), value: s.percent }))} color={C.blue} size={206} /></div></Card>
+              <Card pad="p-4"><Eyebrow color={C.blue}>Ability breakdown</Eyebrow><div className="mt-3 grid grid-cols-4 gap-x-2 gap-y-4">{profile.skills.slice(0, 8).map((item, i) => <RingStat key={item.key} label={trimSkillLabel(item.label)} value={item.percent} color={SkillRingColors[i % SkillRingColors.length]} size={66} />)}</div></Card>
             </div>
+            <InsightBanner color={C.blue}>Your ability shape is strongest on <b>{topCapabilities.slice(0, 2).map((s) => trimSkillLabel(s.label).toLowerCase()).join(' and ')}</b>. Build career options around these spikes — and treat the flatter edges ({profile.skills.slice(-2).map((s) => trimSkillLabel(s.label).toLowerCase()).join(', ')}) as optional growth areas, not blockers.</InsightBanner>
+            <StrengthWeakness strengths={topCapabilities.slice(0, 3).map((s) => `${trimSkillLabel(s.label)} (${s.percent}%)`)} weaknesses={profile.skills.slice(-2).map((s) => `${trimSkillLabel(s.label)} needs deliberate practice`)} />
           </div>
-        </Page>
+        </PageFrame>
 
-        {/* ---------- PAGE 8 · MOTIVATORS & LEARNING ---------- */}
-        <Page n={8} name={p.name}>
-          <H color={C.motivator}>What drives you ⭐ &amp; how you learn 🧠</H>
-          <p className="text-[12px] font-extrabold text-ink mb-2">Your motivators (what makes work feel happy)</p>
-          <ZoneChart data={p.motivators} color={C.motivator} labelWidth={170} />
-          <p className="text-[12px] font-extrabold text-ink mt-4 mb-2">Your learning style — you learn best by: <span style={{ color: C.learning }}>{p.dominantLearning}</span></p>
-          <ZoneChart data={p.learning} color={C.learning} labelWidth={150} />
-          <div className="mt-3 rounded-xl border border-line p-3">
-            <p className="text-[11px] font-extrabold text-ink mb-1">📌 Study tips for you</p>
-            <Bullets color={C.learning} items={LEARNING_TIPS[p.dominantLearning] ?? ['Match study methods to your style for faster learning.']} />
-          </div>
-        </Page>
+        {/* ===== PAGE 9 — INTELLIGENCES ===== */}
+        <SectionPage page={9} kicker="Lens 5 · Intelligences" name={profile.name} theme={SECTION_THEME.intelligences}
+          eyebrow="Multiple intelligences" title="Your natural strengths" subtitle="Gardner’s model of intelligence — where your mind works most naturally."
+          whatIs={SECTION_MEANING.intelligences}
+          dominantTag="Your dominant intelligence" dominantTitle={trimIntelligenceLabel(profile.dominantIntelligence ?? topIntelligences[0]?.label ?? '—')}
+          dominantBody={`${trimIntelligenceLabel(profile.dominantIntelligence ?? topIntelligences[0]?.label ?? 'This intelligence')} is your most natural way of processing the world. Pair a weaker intelligence with a strong one to develop it faster.`}
+          bars={topIntelligences.map((i) => ({ label: trimIntelligenceLabel(i.label), value: i.percent }))}
+          insight={`Careers that reward ${trimIntelligenceLabel(profile.dominantIntelligence ?? topIntelligences[0]?.label ?? 'your dominant').toLowerCase()} thinking will feel effortless to you — look for roles where that intelligence is the main tool of the job.`}
+          footer={<StrengthWeakness strengths={sectionById.intelligences?.strengths ?? []} weaknesses={sectionById.intelligences?.weaknesses ?? []} />}
+        />
 
-        {/* ---------- PAGE 9 · EMOTIONAL INTELLIGENCE ---------- */}
-        <Page n={9} name={p.name}>
-          <H color={C.eq}>Your Emotional Strength ❤️</H>
-          <p className="text-[12px] text-ink-3 mb-3">This is how well you understand and handle feelings — yours and other people&apos;s. It helps you make friends, lead and stay calm.</p>
-          <ZoneChart data={p.eq.map((e) => ({ key: e.key, label: e.label, percent: e.percent }))} color={C.eq} labelWidth={170} />
-          <div className="grid grid-cols-3 gap-2.5 mt-4">
-            {p.eq.slice(0, 3).map((b) => (
-              <TraitTile key={b.key} emoji="💚" title={b.label} sub={`${b.percent}% · ${b.level}`} color={C.eq} />
-            ))}
-          </div>
-          {p.analyticalScore && (
-            <div className="mt-4 rounded-2xl p-4 text-white flex items-center gap-3" style={{ background: C.cluster }}>
-              <span className="text-2xl">🧮</span>
-              <p className="text-[12.5px]">In the thinking quiz you got <b>{p.analyticalScore.correct} out of {p.analyticalScore.total}</b> correct. Nice reasoning!</p>
-            </div>
-          )}
-        </Page>
-
-        {/* ---------- PAGE 10 · CAREER CLUSTERS ---------- */}
-        <Page n={10} name={p.name}>
-          <H color={C.cluster}>Your Career Clusters 🗂️</H>
-          <p className="text-[12px] text-ink-3 mb-3">A cluster is a family of careers that need similar skills. These are the best families for you to explore.</p>
-          <ZoneChart data={p.clusters} color={C.cluster} labelWidth={170} />
-          <div className="grid grid-cols-2 gap-2.5 mt-4">
-            {p.clusters.slice(0, 4).map((b, i) => (
-              <div key={b.key} className="rounded-xl border border-line p-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="w-6 h-6 rounded-full text-white text-[11px] font-bold flex items-center justify-center" style={{ background: PALETTE[i % PALETTE.length] }}>{i + 1}</span>
-                  <p className="text-[12px] font-extrabold text-ink">{b.label}</p>
-                  <span className="ml-auto text-[11px] font-bold" style={{ color: C.cluster }}>{b.percent}%</span>
-                </div>
-                <Bullets color={C.cluster} items={clusterDesc(b.label)} />
-              </div>
-            ))}
-          </div>
-        </Page>
-
-        {/* ---------- PAGE 11 · SUBJECTS ---------- */}
-        <Page n={11} name={p.name}>
-          <H color={C.interest}>Best Subjects / Streams for you 📚</H>
-          <p className="text-[12px] text-ink-3 mb-3">Based on your interests and skills, these streams suit you best. Higher % = a better fit.</p>
-          <div className="grid grid-cols-2 gap-3">
-            {streams.map((st, i) => (
-              <div key={st.name} className="rounded-2xl border border-line p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-2xl">{st.icon}</span>
-                  <p className="text-[13px] font-extrabold text-ink">{i + 1}. {st.name}</p>
-                  <span className="ml-auto text-[12px] font-extrabold" style={{ color: PALETTE[i % PALETTE.length] }}>{st.percent}%</span>
-                </div>
-                <div className="h-2.5 rounded-full bg-line-2 overflow-hidden mb-2">
-                  <div className="h-full rounded-full" style={{ width: `${st.percent}%`, background: PALETTE[i % PALETTE.length] }} />
-                </div>
-                <p className="text-[10px] font-bold uppercase mb-0.5" style={{ color: RED }}>Core subjects</p>
-                <p className="text-[11px] text-ink-2 mb-1.5">{st.mandatory.join(' · ')}</p>
-                <p className="text-[10px] font-bold uppercase text-ink-4 mb-0.5">Good options</p>
-                <p className="text-[11px] text-ink-2">{st.optional.join(' · ')}</p>
-              </div>
-            ))}
-          </div>
-        </Page>
-
-        {/* ---------- PAGE 12 · BEST-FIT CAREERS ---------- */}
-        <Page n={12} name={p.name}>
-          <H color={C.skill}>Your Best-Fit Careers 🚀</H>
-          {hasRecommendations ? (
-            <>
-              <p className="text-[12px] text-ink-3 mb-3">Putting it all together, these careers match you best. The bar shows how strong the match is.</p>
-              <div className="space-y-2">
-                {p.topCareers.slice(0, 6).map((c, i) => (
-                  <div key={c.title} className="flex items-center gap-3 p-2.5 rounded-2xl border border-line">
-                    <span className="w-7 h-7 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0" style={{ background: PALETTE[i % PALETTE.length] }}>{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-extrabold text-ink text-[13px]">{c.title}</p>
-                      <p className="text-[10.5px] text-ink-4 truncate">{c.roles} · {c.cluster}</p>
-                    </div>
-                    <div className="w-32 shrink-0">
-                      <div className="h-2.5 rounded-full bg-line-2 overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${c.match}%`, background: VERDICT_BG[c.verdict] ?? C.skill }} />
-                      </div>
-                      <p className="text-[10px] font-bold text-right mt-0.5" style={{ color: VERDICT_BG[c.verdict] ?? C.skill }}>{c.match}% match</p>
-                    </div>
-                    <span className={`text-[9.5px] font-bold px-2 py-1 rounded-full shrink-0 ${VERDICT_STYLE[c.verdict]}`} style={{ background: VERDICT_BG[c.verdict] }}>{c.verdict}</span>
+        {/* ===== PAGE 10 — ANALYTICAL ===== */}
+        <PageFrame page={10} kicker="Lens 6 · Analytical reasoning" name={profile.name}>
+          <div className="flex h-full flex-col gap-4">
+            <SectionHero theme={SECTION_THEME.analytical} eyebrow="Analytical & logical thinking" title="How you reason" subtitle="Measured accuracy across numerical, logical, verbal and spatial reasoning tasks." />
+            <p className="text-[12px] leading-5" style={{ color: C.body }}><b style={{ color: C.ink }}>What this measures: </b>{SECTION_MEANING.analytical}</p>
+            <Card pad="p-4">
+              <div className="flex items-center justify-between"><Eyebrow color={SECTION_THEME.analytical.color}>Correct-answer evidence</Eyebrow>{profile.analyticalScore?.total ? <span className="text-[11px] font-semibold" style={{ color: C.muted }}>{profile.analyticalScore.correct}/{profile.analyticalScore.total} correct overall</span> : null}</div>
+              <div className="mt-3 grid grid-cols-4 gap-3">
+                {analytical.map((item) => (
+                  <div key={item.key} className="rounded-xl border p-3" style={{ borderColor: C.line, background: C.faint }}>
+                    <p className="text-[11px] font-semibold" style={{ color: C.muted }}>{item.label}</p>
+                    <p className="mt-2 text-[22px] font-extrabold" style={{ color: SECTION_THEME.analytical.color }}>{item.percent}%</p>
+                    <p className="text-[11px]" style={{ color: C.muted }}>{item.correct}/{item.total} correct</p>
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white" style={{ border: `1px solid ${C.line}` }}><div className="h-full rounded-full" style={{ width: `${Math.max(4, item.percent)}%`, background: SECTION_THEME.analytical.color }} /></div>
                   </div>
                 ))}
               </div>
-              <div className="mt-4 rounded-2xl p-4" style={{ background: `${C.skill}12`, border: `1.5px solid ${C.skill}44` }}>
-                <p className="text-[13px] font-extrabold text-ink mb-1">🌟 Your #1 match: {p.topCareers[0]?.title}</p>
-                <p className="text-[12px] text-ink-2">{firstName}, your profile fits <b>{p.topCareers[0]?.title}</b> the most ({p.topCareers[0]?.match}% match){p.topCareers[1] ? `, with ${p.topCareers[1].title} and ${p.topCareers[2]?.title} as great backups.` : '.'}</p>
-              </div>
-            </>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-line p-6 text-[12.5px] text-ink-2 leading-relaxed">Answer the assessment to unlock your best-fit career recommendations.</div>
-          )}
-        </Page>
+            </Card>
+            <div className="flex-1"><StrengthWeakness strengths={sectionById.analytical?.strengths ?? []} weaknesses={sectionById.analytical?.weaknesses ?? []} /></div>
+          </div>
+        </PageFrame>
 
-        {/* ---------- PAGE 13 · DEEP DIVE ---------- */}
-        <Page n={13} name={p.name}>
-          {hasRecommendations && detail && chosenCareer ? (
-            <>
-              <H color={C.cluster}>A closer look: {chosenTitle}</H>
-              <p className="text-[12px] text-ink-3 mb-3">{chosenCareer.cluster} · {chosenCareer.education} · {chosenCareer.salary}</p>
-              <p className="text-[12px] font-extrabold text-ink mb-1.5">What you would do 👩‍💻</p>
-              <Bullets color={C.cluster} items={detail.workNature.slice(0, 4)} />
-              <p className="text-[12px] font-extrabold text-ink mt-4 mb-2">Your road map 🗺️</p>
-              <div className="grid grid-cols-2 gap-2.5">
-                <RoadCard title="Graduation" items={detail.roadmap.graduation} color={C.skill} />
-                <RoadCard title="Post-graduation" items={detail.roadmap.postGraduation} color={C.motivator} />
-                <RoadCard title="Certifications" items={detail.roadmap.certifications} color={C.interest} />
-                <RoadCard title="Jobs you can do" items={detail.roadmap.occupations} color={C.intelligence} />
-              </div>
-              <p className="text-[12px] font-extrabold text-ink mt-4 mb-1.5">How pay grows over time 💰</p>
-              <div className="space-y-1.5">
-                {salary.map((s, i) => (
-                  <div key={s.level}>
-                    <div className="flex justify-between text-[10.5px] text-ink-3"><span>{s.level}</span><span className="font-bold text-ink">{toLakhs(s.amount)}</span></div>
-                    <div className="h-2 rounded-full bg-line-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.max(12, Math.round((s.amount / maxSalary) * 100))}%`, background: i === 0 ? C.skill : C.cluster }} /></div>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <H color={C.cluster}>A closer look at your path</H>
-              <div className="rounded-2xl border border-dashed border-line p-6 text-[12.5px] text-ink-2">Complete the assessment to unlock a detailed career deep-dive with road map and salary growth.</div>
-            </>
-          )}
-        </Page>
+        {/* ===== PAGE 11 — EQ ===== */}
+        <SectionPage page={11} kicker="Emotional intelligence" name={profile.name} theme={SECTION_THEME.eq}
+          eyebrow="Emotional quotient (EQ)" title="How you handle emotions" subtitle="How well you recognise, manage and use emotions — your own and other people’s."
+          whatIs={SECTION_MEANING.eq}
+          dominantTag="Your strongest EQ area" dominantTitle={[...profile.eq].sort((a, b) => b.percent - a.percent)[0]?.label ?? '—'}
+          dominantBody={`Overall EQ is ${bandLabel(eqAverage).toLowerCase()} (${eqAverage}%). Your strongest component is ${([...profile.eq].sort((a, b) => b.percent - a.percent)[0]?.label ?? '').toLowerCase()} — a real asset in teamwork and people-facing work.`}
+          bars={profile.eq.map((e) => ({ label: e.label, value: e.percent }))}
+          insight={`Your ${([...profile.eq].sort((a, b) => b.percent - a.percent)[0]?.label ?? 'strongest area').toLowerCase()} is a standout — it will help you the most in group projects, leadership and any role that depends on reading people well.`}
+          footer={<div className="grid grid-cols-2 gap-3"><div className="rounded-xl border p-3.5" style={{ borderColor: C.line, background: SECTION_THEME.eq.soft }}><Eyebrow color={SECTION_THEME.eq.color}>Why EQ matters</Eyebrow><p className="mt-1.5 text-[12px] leading-5" style={{ color: C.body }}>Emotional intelligence shapes teamwork, leadership and resilience as much as raw ability — often the deciding factor in long-term success.</p></div><div className="flex items-center justify-center rounded-xl border p-3.5" style={{ borderColor: C.line }}><Donut value={eqAverage} size={104} color={SECTION_THEME.eq.color} caption="EQ" /></div></div>}
+        />
 
-        {/* ---------- PAGE 14 · NEXT STEPS + SUMMARY ---------- */}
-        <Page n={14} name={p.name}>
-          <H color={C.skill}>Your action plan ✅</H>
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="rounded-2xl border border-line p-4">
-              <p className="text-[12px] font-extrabold text-ink mb-2 flex items-center gap-1.5"><TrendingUp className="w-4 h-4" style={{ color: C.interest }} /> Things to work on</p>
-              <Bullets color={C.interest} items={p.gaps} />
+        {/* ===== PAGE 12 — TOP DOMAINS + CLUSTERS ===== */}
+        <PageFrame page={12} kicker="Your recommended domains" name={profile.name}>
+          <div className="flex h-full flex-col gap-3">
+            <div className="flex items-end justify-between gap-6"><div><Eyebrow color={C.blue}>Top 3 career fitment domains</Eyebrow><h2 className="mt-1 text-[24px] font-extrabold" style={{ color: C.ink }}>Where you fit — and the evidence</h2></div><span className="rounded-full border px-3 py-1.5 text-[11px] font-semibold" style={{ borderColor: C.line, color: C.body, background: C.faint }}>Broad domains, not job titles</span></div>
+            <div className="space-y-3">{domains.map((domain, index) => <DomainFitmentCard key={domain.key} domain={domain} rank={index + 1} profile={profile} />)}</div>
+            <Card pad="p-4" className="flex-1">
+              <Eyebrow color={C.blue}>Career cluster alignment</Eyebrow>
+              <div className="mt-3"><MindlerBars items={clusters.map((c) => ({ label: c.label, value: c.percent }))} color={C.blue} /></div>
+            </Card>
+          </div>
+        </PageFrame>
+
+        {/* ===== PAGE 13 — CAREER MATCH ===== */}
+        <PageFrame page={13} kicker="Career match" name={profile.name}>
+          <div className="flex h-full flex-col gap-4">
+            <SectionHero theme={SECTION_THEME.clusters} eyebrow="Your #1 career match" title={topDomain?.label ?? 'Your top domain'} subtitle="How strongly your full profile aligns with this domain — and why." />
+            <div className="grid grid-cols-[1.1fr_0.9fr] gap-4">
+              <Card pad="p-4">
+                <div className="mb-2 h-[96px] w-full overflow-hidden rounded-xl" style={{ background: C.faint }}><CareerIllo /></div>
+                <Eyebrow color={C.blue}>About this domain</Eyebrow>
+                <p className="mt-2 text-[12.5px] leading-6" style={{ color: C.body }}>{topDomain?.focus}</p>
+                <p className="mt-2 text-[12px] leading-6" style={{ color: C.muted }}>{topDomain?.rationale}</p>
+                <div className="mt-3 rounded-xl border p-3" style={{ borderColor: C.line, background: C.faint }}>
+                  <Eyebrow color={C.blue}>Signals supporting this match</Eyebrow>
+                  <div className="mt-2"><Bullet items={topDomain?.signals ?? []} color={C.blue} /></div>
+                </div>
+              </Card>
+              <Card pad="p-4" className="flex flex-col">
+                <div className="flex items-center justify-between"><Eyebrow color={C.blue}>Your match</Eyebrow><span className="rounded-lg px-3 py-1 text-[14px] font-extrabold" style={{ background: '#E8F1FE', color: C.blue }}>{topDomain?.score}%</span></div>
+                <div className="mt-3 flex-1"><MindlerBars items={matchBars} color={C.blue} /></div>
+              </Card>
             </div>
-            <div className="rounded-2xl border border-line p-4">
-              <p className="text-[12px] font-extrabold text-ink mb-2 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" style={{ color: C.skill }} /> Your next steps</p>
-              <Bullets color={C.skill} items={p.nextSteps} />
+            <div className="grid grid-cols-2 gap-3">
+              <Card pad="p-4"><div className="flex items-center gap-2"><Lightbulb className="h-4 w-4" style={{ color: C.yellow }} /><Eyebrow>How to explore it</Eyebrow></div><div className="mt-2"><Bullet items={[`Take on a small project or competition in ${topDomain?.label.toLowerCase() ?? 'this area'}.`, 'Read about the field and talk to someone working in it.', 'Shadow or intern to test it against reality.']} color={C.blue} /></div></Card>
+              <Card pad="p-4"><div className="flex items-center gap-2"><TrendingUp className="h-4 w-4" style={{ color: C.green }} /><Eyebrow>Runner-up domains</Eyebrow></div><div className="mt-2 space-y-2">{domains.slice(1, 3).map((d) => <div key={d.key} className="flex items-center justify-between rounded-lg border px-3 py-2" style={{ borderColor: C.line }}><span className="text-[12px] font-semibold" style={{ color: C.ink }}>{d.label}</span><span className="text-[12px] font-bold" style={{ color: C.blue }}>{d.score}%</span></div>)}</div></Card>
             </div>
           </div>
+        </PageFrame>
 
-          <p className="text-[12px] font-extrabold text-ink mb-2">Your report at a glance</p>
-          <div className="rounded-2xl border border-line divide-y divide-line mb-4">
-            <SumRow emoji="🧩" label="Personality" value={`${p.mbtiType} · ${p.mbtiAxes.map((a) => a.dominant).join(', ')}`} />
-            <SumRow emoji="🎯" label="Top interests" value={p.topInterests.join(', ')} />
-            <SumRow emoji="💡" label="Top intelligence" value={p.dominantIntelligence ?? '—'} />
-            <SumRow emoji="🛠️" label="Skills" value={`Overall ${p.overallSkills}% · ${p.skills[0]?.label} strongest`} />
-            <SumRow emoji="🧠" label="Learning style" value={p.dominantLearning} />
-            <SumRow emoji="🗂️" label="Top clusters" value={p.clusters.slice(0, 3).map((c) => c.label).join(', ')} />
+        {/* ===== PAGE 14 — DOMINANT SUMMARY (icon tiles) ===== */}
+        <PageFrame page={14} kicker="Your profile at a glance" name={profile.name}>
+          <div className="flex h-full flex-col gap-4">
+            <div><Eyebrow color={C.blue}>Snapshot</Eyebrow><h2 className="mt-1 text-[24px] font-extrabold" style={{ color: C.ink }}>Your dominant profile</h2><p className="mt-1.5 text-[12.5px] leading-5" style={{ color: C.body }}>The strongest signal from each lens, at a glance.</p></div>
+            {[
+              { tag: 'Your dominant personality', theme: SECTION_THEME.personality, items: profile.mbtiAxes.map((a) => a.dominant).slice(0, 4) },
+              { tag: 'Your dominant interests', theme: SECTION_THEME.interests, items: profile.interests.slice(0, 4).map((i) => i.label) },
+              { tag: 'Your dominant intelligences', theme: SECTION_THEME.intelligences, items: topIntelligences.slice(0, 4).map((i) => trimIntelligenceLabel(i.label)) },
+              { tag: 'Your dominant skills', theme: SECTION_THEME.analytical, items: topCapabilities.slice(0, 4).map((s) => trimSkillLabel(s.label)) },
+              { tag: 'Your dominant motivators', theme: SECTION_THEME.motivators, items: profile.motivators.slice(0, 4).map((m) => m.label) },
+              { tag: 'Your dominant EQ', theme: SECTION_THEME.eq, items: [...profile.eq].sort((a, b) => b.percent - a.percent).slice(0, 4).map((e) => e.label) },
+            ].map((row) => (
+              <div key={row.tag}>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: row.theme.deep }}>{row.tag}</p>
+                <div className="flex flex-wrap gap-5">{row.items.map((label) => <FlatTile key={label} icon={glyphFor(label)} label={label} color={row.theme.color} />)}</div>
+              </div>
+            ))}
           </div>
+        </PageFrame>
 
-          <div className="rounded-2xl p-5 text-white flex items-center justify-between" style={{ background: `linear-gradient(135deg, ${C.personality}, ${C.motivator})` }}>
-            <div>
-              <p className="font-extrabold text-sm">Want a real person to guide you? 🤝</p>
-              <p className="text-xs text-white/80">Talk to a OneGrasp career coach to build your plan.</p>
+        {/* ===== PAGE 15 — PATHS + SUBJECTS + NEXT STEPS ===== */}
+        <PageFrame page={15} kicker="Paths, subjects & next steps" name={profile.name}>
+          <div className="flex h-full flex-col gap-3.5">
+            <div><Eyebrow color={C.blue}>Illustrative career paths</Eyebrow><h2 className="mt-1 text-[20px] font-extrabold" style={{ color: C.ink }}>Roles within your top domains</h2></div>
+            <Card pad="p-0" className="overflow-hidden">
+              <table className="w-full border-collapse">
+                <thead><tr style={{ background: C.navy }}>{['#', 'Career path', 'Profile fit', 'Rating'].map((h) => <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold text-white">{h}</th>)}</tr></thead>
+                <tbody>
+                  {careers.map((career: CareerFit, i) => {
+                    const vc = verdictColor[career.verdict] ?? C.muted;
+                    return (
+                      <tr key={career.title} style={{ background: i % 2 ? '#FAFCFE' : '#fff', borderBottom: `1px solid ${C.line}` }}>
+                        <td className="px-3 py-2 text-[12px] font-bold" style={{ color: C.navy }}>{i + 1}</td>
+                        <td className="px-3 py-2"><p className="text-[12px] font-bold" style={{ color: C.ink }}>{career.title}</p><p className="text-[10px]" style={{ color: C.muted }}>{career.cluster} · {career.roles}</p></td>
+                        <td className="px-3 py-2"><div className="flex items-center gap-2"><div className="h-2 w-[80px] overflow-hidden rounded-full" style={{ background: '#EAF0F8' }}><div className="h-full rounded-full" style={{ width: `${career.match}%`, background: C.blue }} /></div><span className="text-[11px] font-bold" style={{ color: C.blue }}>{career.match}</span></div></td>
+                        <td className="px-3 py-2"><span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white" style={{ background: vc }}>{career.verdict}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Card>
+
+            <div><Eyebrow color={C.blue}>Suggested streams & subjects</Eyebrow></div>
+            <div className="grid grid-cols-2 gap-3">
+              {streamDomains.map(({ domain, stream }) => stream && (
+                <div key={domain.key} className="rounded-xl border p-3.5" style={{ borderColor: C.line, borderLeft: `4px solid ${C.blue}` }}>
+                  <p className="text-[12px] font-bold" style={{ color: C.ink }}>{domain.label} <span className="font-semibold" style={{ color: C.blue }}>· {stream.stream}</span></p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">{stream.mandatory.map((m) => <span key={m} className="rounded-md px-2 py-0.5 text-[10px] font-semibold text-white" style={{ background: C.navy }}>{m}</span>)}{stream.optional.map((m) => <span key={m} className="rounded-md border px-2 py-0.5 text-[10px] font-semibold" style={{ borderColor: C.line, color: C.body }}>{m}</span>)}</div>
+                </div>
+              ))}
             </div>
-            <div className="flex gap-2 text-xs">
-              <span className="inline-flex items-center gap-1 bg-white/20 px-3 py-2 rounded-lg"><Phone className="w-3.5 h-3.5" /> 8977760443</span>
-              <span className="inline-flex items-center gap-1 bg-white/20 px-3 py-2 rounded-lg"><Mail className="w-3.5 h-3.5" /> support@onegrasp.com</span>
+
+            <div className="grid flex-1 grid-cols-2 gap-3">
+              <Card pad="p-4"><div className="flex items-center gap-2"><Lightbulb className="h-4 w-4" style={{ color: C.yellow }} /><Eyebrow>Development priorities</Eyebrow></div><div className="mt-2"><Bullet items={priorities.slice(0, 3)} color={C.blue} /></div></Card>
+              <Card pad="p-4"><div className="flex items-center gap-2"><TrendingUp className="h-4 w-4" style={{ color: C.green }} /><Eyebrow>Immediate next moves</Eyebrow></div><div className="mt-2"><Bullet items={[priorities[3], `Lean into your strongest lens: ${strongestSection?.title.toLowerCase() ?? 'profile strength'}.`, `Use your #1 domain for deeper counselling and subject planning.`]} color={C.green} /></div></Card>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-2xl p-4 text-white" style={{ background: `linear-gradient(135deg, ${C.blue}, ${C.navy})` }}>
+              <div><p className="text-[14px] font-bold">Ready for your roadmap?</p><p className="text-[11.5px] text-white/85">Book a 1-on-1 counselling session to turn this report into a step-by-step plan.</p></div>
+              <span className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[12px] font-bold" style={{ background: C.yellow, color: C.navy }}>Schedule a session <ArrowRight className="h-4 w-4" /></span>
             </div>
           </div>
-          <p className="text-[10px] text-ink-4 mt-3 text-center">Generated {generated} · OneGrasp Career Counselling · Every number comes from your own answers.</p>
-        </Page>
-
-        <div className="report-toolbar flex justify-center pt-2">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 bg-ink text-white font-semibold px-6 py-3 rounded-xl hover:bg-ink-2">
-            <LayoutDashboard className="w-4 h-4" /> Back to Dashboard
-          </Link>
-        </div>
+        </PageFrame>
       </div>
     </div>
   );
 }
-
-/* ----------------------------- sub-components ----------------------------- */
-
-function StatCard({ emoji, label, value, color }: { emoji: string; label: string; value: string; color: string }) {
-  return (
-    <div className="rounded-2xl border border-line p-4 text-center" style={{ background: `${color}0D` }}>
-      <div className="text-2xl mb-1">{emoji}</div>
-      <p className="text-[10px] uppercase tracking-wide text-ink-4">{label}</p>
-      <p className="text-[16px] font-extrabold" style={{ color }}>{value}</p>
-    </div>
-  );
-}
-
-function RoadCard({ title, items, color }: { title: string; items: string[]; color: string }) {
-  return (
-    <div className="rounded-xl border border-line overflow-hidden">
-      <div className="px-3 py-1 text-[10px] font-bold text-white" style={{ background: color }}>{title}</div>
-      <ul className="px-3 py-2 space-y-0.5">{items.slice(0, 4).map((t) => <li key={t} className="text-[11px] text-ink-2">• {t}</li>)}</ul>
-    </div>
-  );
-}
-
-function SumRow({ emoji, label, value }: { emoji: string; label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[1fr_2fr] gap-3 px-4 py-2.5 items-start">
-      <p className="text-[12px] font-bold text-ink flex items-center gap-1.5"><span>{emoji}</span>{label}</p>
-      <p className="text-[12px] text-ink-2">{value}</p>
-    </div>
-  );
-}
-
-/* personality axis → dominant letter */
-function letterFor(a: { axis: string; dominant: string }) {
-  switch (a.axis) {
-    case 'EI': return a.dominant === 'Extrovert' ? 'E' : 'I';
-    case 'SN': return a.dominant === 'Sensing' ? 'S' : 'N';
-    case 'TF': return a.dominant === 'Thinking' ? 'T' : 'F';
-    default: return a.dominant === 'Judging' ? 'J' : 'P';
-  }
-}
-const DIMS = [
-  { axis: 'EI', title: 'Where you get your energy' },
-  { axis: 'SN', title: 'How you take in information' },
-  { axis: 'TF', title: 'How you make decisions' },
-  { axis: 'JP', title: 'How you plan your world' },
-] as const;
-
-/* ----------------------------- content maps ----------------------------- */
-
-const EXTRA_PERSONALITY: Record<string, string[]> = {
-  I: ['You recharge with quiet time and think before you speak.'],
-  E: ['You recharge around people and think out loud.'],
-  S: ['You trust facts, details and real experience.'],
-  N: ['You love ideas, patterns and big-picture thinking.'],
-  T: ['You decide with logic and fairness.'],
-  F: ['You decide by caring about people and values.'],
-  J: ['You like clear plans, lists and finishing on time.'],
-  P: ['You stay flexible and enjoy keeping your options open.'],
-};
-const DEV_PERSONALITY: Record<string, string[]> = {
-  I: ['Share one idea aloud in class daily.', 'Try a study buddy now and then.'],
-  E: ['Pause and listen fully before replying.', 'Try 15 minutes of solo focus daily.'],
-  S: ['Try one “what if” brainstorm weekly.', 'Link facts into the bigger picture.'],
-  N: ['Write down concrete facts and steps.', 'Finish one idea before the next.'],
-  T: ['Ask how a choice affects people too.', 'Praise teammates when they do well.'],
-  F: ['Look at the facts before deciding.', 'Practise honest, kind feedback.'],
-  J: ['Leave room in plans for surprises.', 'Try one spontaneous activity weekly.'],
-  P: ['Use a simple daily to-do list.', 'Set small deadlines for yourself.'],
-};
-
-const INTEREST_DESC: Record<string, string[]> = {
-  Realistic: ['You enjoy hands-on, practical work with tools, machines or the outdoors.', 'You like things you can build and touch.'],
-  Investigative: ['You are curious and love research and problem-solving.', 'You enjoy ideas, data and how things work.'],
-  Artistic: ['You are creative, expressive and imaginative.', 'You enjoy design, writing and original work.'],
-  Social: ['You enjoy helping, teaching and working with people.', 'You value teamwork and making a difference.'],
-  Enterprising: ['You like leading, persuading and getting things done.', 'You enjoy taking charge and starting things.'],
-  Conventional: ['You are organised, careful and reliable.', 'You enjoy clear, structured work with data.'],
-};
-
-const LEARNING_TIPS: Record<string, string[]> = {
-  'Auditory Learning': ['Study in groups and talk topics out loud.', 'Record notes and replay them.', 'Use audiobooks and recite key facts.'],
-  'Visual Learning': ['Turn notes into mind-maps and flowcharts.', 'Use colour and highlighting.', 'Watch demo videos.'],
-  'Read & Write Learning': ['Rewrite notes in your own words.', 'Make lists and summaries.', 'Practise with written questions.'],
-  'Kinesthetic Learning': ['Learn by doing experiments and models.', 'Take movement breaks while studying.', 'Use real examples and projects.'],
-};

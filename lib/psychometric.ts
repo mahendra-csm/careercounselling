@@ -78,6 +78,29 @@ export interface CareerFit {
   title: string; roles: string; cluster: string; match: number;
   verdict: 'Top Choice' | 'Good Choice' | 'Optional' | 'Develop' | 'Avoid';
 }
+export interface AnalyticalBreakdown {
+  key: string;
+  label: string;
+  correct: number;
+  total: number;
+  percent: number;
+}
+export interface SectionScore {
+  id: string;
+  title: string;
+  score: number;
+  basis: string;
+  strengths: string[];
+  weaknesses: string[];
+}
+export interface DomainFitment {
+  key: string;
+  label: string;
+  score: number;
+  focus: string;
+  rationale: string;
+  signals: string[];
+}
 export interface PsychometricProfile {
   kind: 'psychometric';
   name: string;
@@ -111,6 +134,9 @@ export interface PsychometricProfile {
   /** Headline aptitude score from the Analytical & Logical section. */
   analyticalScore?: { correct: number; total: number };
   /** How much of the test was answered → how reliable the profile is. */
+  analyticalBreakdown?: AnalyticalBreakdown[];
+  sectionScores?: SectionScore[];
+  domainFitments?: DomainFitment[];
   confidence?: { percent: number; answered: number; total: number; label: string };
 }
 

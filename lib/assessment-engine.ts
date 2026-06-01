@@ -13,6 +13,7 @@ import {
 } from '@/lib/assessment-questions';
 import {
   type PsychometricProfile, type Bar, type CareerFit, type MbtiAxis,
+  type AnalyticalBreakdown, type DomainFitment, type SectionScore,
   type Riasec, type Skill, type Eq, type Learning,
   RIASEC_LABELS, MBTI_DESC, SKILL_LABELS, EQ_LABELS, LEARNING_LABELS,
   CAREERS, CLUSTER_BY_RIASEC, clamp, round, ratingFor, levelFor,
@@ -31,8 +32,128 @@ const INTELLIGENCE_LABELS: Record<Intelligence, string> = {
 
 /** Share of Yes answers (binary Yes/No) across a set of questions → 0–100 percent.
  *  Order-independent: it checks the chosen option's label, not its index. */
+const APTITUDE_LABELS: Record<AptitudeSkill, string> = {
+  numerical: 'Numerical reasoning',
+  logical: 'Logical reasoning',
+  verbal: 'Verbal reasoning',
+  spatial: 'Spatial reasoning',
+};
+
+const DOMAIN_MODELS: {
+  key: string;
+  label: string;
+  focus: string;
+  riasec: Riasec[];
+  skills: Skill[];
+  intelligences: Intelligence[];
+  eq: Eq[];
+  motivators: string[];
+  clusters: string[];
+}[] = [
+  {
+    key: 'engineering-technology',
+    label: 'Engineering & Technology',
+    focus: 'Systems thinking, design logic, technical build, and applied problem solving.',
+    riasec: ['R', 'I', 'C'],
+    skills: ['logical', 'numerical', 'spatial', 'mechanical'],
+    intelligences: ['logical', 'spatial', 'kinesthetic'],
+    eq: ['motivation'],
+    motivators: ['continuous-learning', 'structure'],
+    clusters: ['Engineering & Technology', 'Information Technology', 'Design & Architecture'],
+  },
+  {
+    key: 'research-analytics',
+    label: 'Research & Analytics',
+    focus: 'Investigation, experimentation, evidence, and analytical modelling.',
+    riasec: ['I', 'C', 'A'],
+    skills: ['logical', 'numerical', 'verbal'],
+    intelligences: ['logical', 'linguistic', 'intrapersonal'],
+    eq: ['selfAwareness', 'motivation'],
+    motivators: ['continuous-learning', 'independence'],
+    clusters: ['Science & Research', 'Information Technology', 'Health Science'],
+  },
+  {
+    key: 'psychology-human-behaviour',
+    label: 'Psychology & Human Behaviour',
+    focus: 'People insight, listening, reflection, and behaviour science.',
+    riasec: ['S', 'I', 'A'],
+    skills: ['social', 'verbal', 'logical'],
+    intelligences: ['interpersonal', 'intrapersonal', 'linguistic'],
+    eq: ['empathy', 'relationship', 'selfAwareness'],
+    motivators: ['social-service', 'continuous-learning'],
+    clusters: ['Human Service', 'Education & Training', 'Healthcare'],
+  },
+  {
+    key: 'arts-design-culture',
+    label: 'Arts, Design & Culture',
+    focus: 'Creative expression, visual thinking, storytelling, and cultural production.',
+    riasec: ['A', 'S', 'E'],
+    skills: ['spatial', 'verbal', 'social'],
+    intelligences: ['spatial', 'linguistic', 'musical'],
+    eq: ['empathy'],
+    motivators: ['creativity', 'independence'],
+    clusters: ['Arts & Media', 'Media & Communication', 'Design & Architecture'],
+  },
+  {
+    key: 'business-entrepreneurship',
+    label: 'Business & Entrepreneurship',
+    focus: 'Leadership, influence, growth strategy, and execution under ambiguity.',
+    riasec: ['E', 'C', 'S'],
+    skills: ['leadership', 'verbal', 'organizing'],
+    intelligences: ['interpersonal', 'logical'],
+    eq: ['relationship', 'motivation'],
+    motivators: ['independence', 'high-paced'],
+    clusters: ['Business Management', 'Marketing & Advertising', 'Entrepreneurship'],
+  },
+  {
+    key: 'finance-strategy',
+    label: 'Finance & Strategy',
+    focus: 'Commercial judgment, numbers, systems, and structured decision making.',
+    riasec: ['C', 'E', 'I'],
+    skills: ['numerical', 'logical', 'organizing'],
+    intelligences: ['logical', 'intrapersonal'],
+    eq: ['managingEmotions'],
+    motivators: ['structure', 'high-paced'],
+    clusters: ['Accounts & Finance', 'Government & Legal', 'Administration'],
+  },
+  {
+    key: 'education-social-impact',
+    label: 'Education & Social Impact',
+    focus: 'Teaching, guidance, communication, and mission-driven contribution.',
+    riasec: ['S', 'A', 'E'],
+    skills: ['verbal', 'social', 'organizing'],
+    intelligences: ['linguistic', 'interpersonal'],
+    eq: ['empathy', 'relationship'],
+    motivators: ['social-service', 'continuous-learning'],
+    clusters: ['Education & Training', 'Human Service', 'Healthcare'],
+  },
+  {
+    key: 'health-life-sciences',
+    label: 'Health & Life Sciences',
+    focus: 'Care, diagnosis, evidence, and disciplined service.',
+    riasec: ['I', 'S', 'C'],
+    skills: ['logical', 'social', 'organizing'],
+    intelligences: ['logical', 'naturalist', 'interpersonal'],
+    eq: ['empathy', 'managingEmotions'],
+    motivators: ['social-service', 'structure'],
+    clusters: ['Health Science', 'Healthcare', 'Science & Research'],
+  },
+];
+
+const AXIS_STRENGTHS: Record<string, string> = {
+  I: 'Thoughtful independent focus',
+  E: 'High social drive and collaboration',
+  S: 'Practical execution and detail awareness',
+  N: 'Pattern recognition and future thinking',
+  T: 'Objective decision discipline',
+  F: 'People-sensitive judgment',
+  J: 'Planning and follow-through',
+  P: 'Adaptability and option scanning',
+};
+
 const QUESTION_BY_ID: Record<string, (typeof QUESTIONS)[number]> =
   Object.fromEntries(QUESTIONS.map((q) => [q.id, q]));
+const average = (values: number[]) => (values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0);
 function ynsPercent(ids: string[], a: AnswerMap): number {
   if (!ids.length) return 0;
   const yes = ids.reduce((s, id) => {
@@ -115,15 +236,24 @@ export function scoreAssessment(answers: AnswerMap, name?: string, dreamCareer?:
 
   /* ---------- 6. ANALYTICAL & LOGICAL (aptitude correctness) ---------- */
   const aptKeys: AptitudeSkill[] = ['numerical', 'logical', 'verbal', 'spatial'];
+  const analyticalQuestions = questionsForSection('analytical');
   const aptPct: Record<AptitudeSkill, number> = { numerical: 0, logical: 0, verbal: 0, spatial: 0 };
+  const analyticalBreakdown: AnalyticalBreakdown[] = [];
   aptKeys.forEach((k) => {
-    const qs = questionsForSection('analytical').filter((q) => q.skill === k);
-    if (!qs.length) { aptPct[k] = 0; return; }
+    const qs = analyticalQuestions.filter((q) => q.skill === k);
+    if (!qs.length) {
+      aptPct[k] = 0;
+      analyticalBreakdown.push({ key: k, label: APTITUDE_LABELS[k], correct: 0, total: 0, percent: 0 });
+      return;
+    }
     const correct = qs.reduce((s, q) => s + (answers[q.id] === q.correct ? 1 : 0), 0);
-    aptPct[k] = clamp((correct / qs.length) * 100);
+    const percent = clamp((correct / qs.length) * 100);
+    aptPct[k] = percent;
+    analyticalBreakdown.push({ key: k, label: APTITUDE_LABELS[k], correct, total: qs.length, percent });
   });
-  const analyticalCorrect = questionsForSection('analytical').reduce((s, q) => s + (answers[q.id] === q.correct ? 1 : 0), 0);
-  const analyticalTotal = questionsForSection('analytical').length;
+  analyticalBreakdown.sort((a, b) => b.percent - a.percent);
+  const analyticalCorrect = analyticalQuestions.reduce((s, q) => s + (answers[q.id] === q.correct ? 1 : 0), 0);
+  const analyticalTotal = analyticalQuestions.length;
 
   /* ---------- SKILLS & ABILITIES ----------
    * Measured aptitude (numerical/logical/verbal/spatial) blended with the
@@ -258,6 +388,111 @@ export function scoreAssessment(answers: AnswerMap, name?: string, dreamCareer?:
     `Talk to a OneGrasp counsellor to lock your career execution plan.`,
   ];
 
+  const motivatorPct = Object.fromEntries(motivators.map((item) => [item.key, item.percent])) as Record<string, number>;
+  const eqPct = Object.fromEntries(eq.map((item) => [item.key, item.percent])) as Record<Eq, number>;
+  const clusterPct = Object.fromEntries(clusters.map((item) => [item.label, item.percent])) as Record<string, number>;
+  const axisMargins = mbtiAxes
+    .map((axis) => ({ axis, margin: Math.abs(axis.rightPct - axis.leftPct), letter: letterFor(axis) }))
+    .sort((a, b) => b.margin - a.margin);
+
+  const sectionScores: SectionScore[] = answeredTotal === 0 ? [] : [
+    {
+      id: 'personality',
+      title: 'Personality',
+      score: clamp(average(mbtiAxes.map((axis) => Math.max(axis.leftPct, axis.rightPct)))),
+      basis: 'Consistency across your four decision-style axes.',
+      strengths: axisMargins.slice(0, 2).map((item) => AXIS_STRENGTHS[item.letter]),
+      weaknesses: axisMargins.slice(-2).map((item) => `Balance between ${item.axis.left.toLowerCase()} and ${item.axis.right.toLowerCase()} styles may need deliberate routines.`),
+    },
+    {
+      id: 'interests',
+      title: 'Interests',
+      score: clamp(average(interests.slice(0, 3).map((item) => item.percent))),
+      basis: 'Strength of your dominant RIASEC interest themes.',
+      strengths: interests.slice(0, 3).map((item) => `${item.label} interest`),
+      weaknesses: interests.slice(-2).map((item) => `Lower natural pull toward ${item.label.toLowerCase()} tasks.`),
+    },
+    {
+      id: 'motivators',
+      title: 'Motivators',
+      score: clamp(average(motivators.slice(0, 3).map((item) => item.percent))),
+      basis: 'Clarity of the work conditions that energise you.',
+      strengths: motivators.slice(0, 2).map((item) => `${item.label} is a strong work driver`),
+      weaknesses: motivators.slice(-2).map((item) => `${item.label} is less likely to sustain long-term motivation.`),
+    },
+    {
+      id: 'learning',
+      title: 'Learning',
+      score: clamp((learning[0]?.percent ?? 0) + (learning[1]?.percent ?? 0)),
+      basis: 'Concentration of your preferred learning channels.',
+      strengths: learning.slice(0, 2).map((item) => `${item.label} supports faster comprehension`),
+      weaknesses: learning.slice(-2).map((item) => `${item.label} is a lower-efficiency study mode right now.`),
+    },
+    {
+      id: 'intelligences',
+      title: 'Intelligences',
+      score: clamp(average(intelligences.slice(0, 3).map((item) => item.percent))),
+      basis: 'Strength of your highest multiple-intelligence signals.',
+      strengths: intelligences.slice(0, 3).map((item) => `${item.label.split(' (')[0]} intelligence`),
+      weaknesses: intelligences.slice(-2).map((item) => `${item.label.split(' (')[0]} is less expressed and may need more deliberate use.`),
+    },
+    {
+      id: 'analytical',
+      title: 'Analytical reasoning',
+      score: analyticalTotal ? clamp((analyticalCorrect / analyticalTotal) * 100) : 0,
+      basis: `${analyticalCorrect}/${analyticalTotal} correct across numerical, logical, verbal, and spatial reasoning.`,
+      strengths: analyticalBreakdown.slice(0, 2).map((item) => `${item.label}: ${item.correct}/${item.total} correct`),
+      weaknesses: analyticalBreakdown.slice(-2).map((item) => `${item.label} needs more structured practice.`),
+    },
+  ];
+
+  const domainFitments: DomainFitment[] = answeredTotal === 0 ? [] : DOMAIN_MODELS.map((domain) => {
+    const domainInterest = average(domain.riasec.map((key) => riasecPct[key] ?? 0));
+    const domainSkills = average(domain.skills.map((key) => skillPct[key] ?? 0));
+    const domainIntelligence = average(domain.intelligences.map((key) => intPct[key] ?? 0));
+    const domainEq = average(domain.eq.map((key) => eqPct[key] ?? 0));
+    const domainMotivators = average(domain.motivators.map((key) => motivatorPct[key] ?? 0));
+    const domainClusters = average(domain.clusters.map((key) => clusterPct[key] ?? 0));
+    const score = clamp(
+      domainInterest * 0.24 +
+      domainSkills * 0.26 +
+      domainIntelligence * 0.16 +
+      domainEq * 0.14 +
+      domainMotivators * 0.1 +
+      domainClusters * 0.1
+    );
+    const strongestInterest = domain.riasec
+      .map((key) => ({ label: RIASEC_LABELS[key], percent: riasecPct[key] ?? 0 }))
+      .sort((a, b) => b.percent - a.percent)
+      .slice(0, 2);
+    const strongestSkills = domain.skills
+      .map((key) => ({ label: SKILL_LABELS[key].replace(' & Decision Making', '').replace(' Ability', ''), percent: skillPct[key] ?? 0 }))
+      .sort((a, b) => b.percent - a.percent)
+      .slice(0, 2);
+    const strongestSupport = [...domain.eq.map((key) => EQ_LABELS[key]), ...domain.intelligences.map((key) => INTELLIGENCE_LABELS[key].split(' (')[0])]
+      .map((label) => {
+        const eqKey = eqKeys.find((key) => EQ_LABELS[key] === label);
+        if (eqKey) return { label, percent: eqPct[eqKey] ?? 0 };
+        const intKey = intKeys.find((key) => INTELLIGENCE_LABELS[key].startsWith(label));
+        return { label, percent: intKey ? intPct[intKey] ?? 0 : 0 };
+      })
+      .sort((a, b) => b.percent - a.percent)[0];
+    const signals = [
+      `${strongestInterest.map((item) => item.label).join(' + ')} interests`,
+      `${strongestSkills.map((item) => item.label).join(' and ')} capability`,
+      strongestSupport ? `${strongestSupport.label} support signal` : '',
+    ].filter(Boolean);
+
+    return {
+      key: domain.key,
+      label: domain.label,
+      score,
+      focus: domain.focus,
+      rationale: `This domain fits because your profile combines ${signals[0]?.toLowerCase() ?? 'relevant interests'}, ${signals[1]?.toLowerCase() ?? 'relevant capability'}, and ${signals[2]?.toLowerCase() ?? 'supportive behavioural evidence'}.`,
+      signals,
+    };
+  }).sort((a, b) => b.score - a.score).slice(0, 6);
+
   /* ---------- section completion meta + confidence ---------- */
   const sectionMeta = SECTIONS.map((s) => {
     const qs = questionsForSection(s.id);
@@ -285,6 +520,9 @@ export function scoreAssessment(answers: AnswerMap, name?: string, dreamCareer?:
     eq, skills, overallSkills, clusters, topCareers, careerFocus, gaps, nextSteps,
     intelligences, dominantIntelligence, sectionMeta,
     analyticalScore: { correct: analyticalCorrect, total: analyticalTotal },
+    analyticalBreakdown,
+    sectionScores,
+    domainFitments,
     confidence,
   };
 }

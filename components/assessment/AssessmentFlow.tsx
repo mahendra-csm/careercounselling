@@ -9,13 +9,14 @@ import {
   HelpCircle, SlidersHorizontal, Telescope, Route,
   ChevronRight, ChevronLeft, ShieldCheck, Check, Eye, EyeOff,
   Clock, Flag, CheckCircle2, Circle, AlertCircle, ListChecks,
-  MapPin, Maximize, AlertTriangle, Lock, Loader2, ShieldAlert,
+  MapPin, Maximize, AlertTriangle, Lock, Loader2, ShieldAlert, Languages,
 } from 'lucide-react';
 import Logo from '@/components/brand/Logo';
 import {
   QUESTIONS, SECTIONS, questionsForSection,
   type AnswerMap, type SectionId,
 } from '@/lib/assessment-questions';
+import { EXAM_LANGS, localizeQuestion, type ExamLang } from '@/lib/assessment-i18n';
 import { scoreAssessment } from '@/lib/assessment-engine';
 import { makeReportId, saveLocalReport } from '@/lib/report-store';
 import { signUp, signIn, getSession } from '@/lib/firebase';
@@ -65,6 +66,7 @@ export default function AssessmentFlow() {
 
   // question runner
   const total = QUESTIONS.length;
+  const [lang, setLang] = useState<ExamLang>('en'); // exam language for prompts + options
   const [qIndex, setQIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [marked, setMarked] = useState<Record<string, boolean>>({});
@@ -77,10 +79,11 @@ export default function AssessmentFlow() {
   const [timedOut, setTimedOut] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState('');
 
-  // anti-proxy (full-screen) monitoring
+  // anti-proxy monitoring (full-screen + tab focus + copy/shortcuts)
   const [fsWarnings, setFsWarnings] = useState(0);
   const [showFsWarning, setShowFsWarning] = useState(false);
   const [terminated, setTerminated] = useState(false);
+  const [violationReason, setViolationReason] = useState('You left full-screen mode');
 
   // submission
   const [submitting, setSubmitting] = useState(false);
@@ -142,6 +145,23 @@ export default function AssessmentFlow() {
     if (d.fullscreenElement || (d as { webkitFullscreenElement?: Element }).webkitFullscreenElement) {
       (d.exitFullscreen ?? d.webkitExitFullscreen)?.call(d).catch(() => {});
     }
+  }, []);
+
+  // Records a proctoring violation (fullscreen exit, tab switch, focus loss).
+  // Multiple browser signals can fire for one action, so we coalesce within a
+  // short window. First violation = one warning; the second ends the exam.
+  const lastViolationAt = useRef(0);
+  const recordViolation = useCallback((reason: string) => {
+    const now = Date.now();
+    if (now - lastViolationAt.current < 1200) return; // collapse duplicate signals from one action
+    lastViolationAt.current = now;
+    setViolationReason(reason);
+    setFsWarnings((w) => {
+      const next = w + 1;
+      if (next >= 2) { setTerminated(true); setShowFsWarning(false); }
+      else { setShowFsWarning(true); }
+      return next;
+    });
   }, []);
 
   const handleSubmit = useCallback(async () => {
@@ -254,25 +274,63 @@ export default function AssessmentFlow() {
     return () => clearInterval(t);
   }, [qIndex, introSection, phase]);
 
-  // anti-proxy: while the test is running the student must stay in full screen.
-  // First exit = one warning; a second exit terminates the exam.
+  // anti-proxy: during the test the student must stay in full screen AND keep the
+  // exam tab focused. Exiting full screen, switching tabs/apps, or moving focus
+  // out of the window all count. First violation = one warning; a second ends it.
+  // A short grace period after entering the exam avoids false positives from the
+  // initial fullscreen transition (which briefly blurs the window).
   useEffect(() => {
     if (phase !== 4 || submitting || terminated) return;
+    let armed = false;
+    const armTimer = setTimeout(() => { armed = true; }, 1500);
+
     const onFsChange = () => {
       const inFs = Boolean(document.fullscreenElement || (document as { webkitFullscreenElement?: Element }).webkitFullscreenElement);
-      if (inFs) return;
-      setFsWarnings((w) => {
-        const next = w + 1;
-        if (next >= 2) { setTerminated(true); setShowFsWarning(false); }
-        else { setShowFsWarning(true); }
-        return next;
-      });
+      if (!inFs && armed) recordViolation('You left full-screen mode');
     };
+    const onVisibility = () => {
+      if (document.hidden && armed) recordViolation('You switched away from the exam tab');
+    };
+    const onBlur = () => { if (armed) recordViolation('You moved focus out of the exam window'); };
+
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
     return () => {
+      clearTimeout(armTimer);
       document.removeEventListener('fullscreenchange', onFsChange);
       document.removeEventListener('webkitfullscreenchange', onFsChange);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, [phase, submitting, terminated, recordViolation]);
+
+  // anti-proxy: block copy / cut / paste, right-click and risky shortcuts
+  // (devtools, new tab/window, print, view-source) while the test is running.
+  useEffect(() => {
+    if (phase !== 4 || submitting || terminated) return;
+    const block = (e: Event) => { e.preventDefault(); setToast('This action is disabled during the exam.'); };
+    const onKey = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      const ctrl = e.ctrlKey || e.metaKey;
+      const isShortcut =
+        (ctrl && ['c', 'v', 'x', 't', 'n', 'p', 's', 'u'].includes(k)) ||
+        k === 'f12' ||
+        (ctrl && e.shiftKey && ['i', 'j', 'c'].includes(k));
+      if (isShortcut) { e.preventDefault(); setToast('Shortcuts are disabled during the exam.'); }
+    };
+    document.addEventListener('contextmenu', block);
+    document.addEventListener('copy', block);
+    document.addEventListener('cut', block);
+    document.addEventListener('paste', block);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('contextmenu', block);
+      document.removeEventListener('copy', block);
+      document.removeEventListener('cut', block);
+      document.removeEventListener('paste', block);
+      document.removeEventListener('keydown', onKey);
     };
   }, [phase, submitting, terminated]);
 
@@ -293,9 +351,10 @@ export default function AssessmentFlow() {
             <ShieldAlert className="w-8 h-8 text-red" />
           </div>
           <h2 className="text-2xl font-extrabold text-ink mb-2">Assessment ended</h2>
+          <p className="text-ink-3 text-sm mb-2">{violationReason} again after a warning.</p>
           <p className="text-ink-3 text-sm mb-6">
-            You left full-screen mode more than once during the test. To keep the assessment fair and
-            proxy-free, it has been stopped. Please contact your counsellor to retake it.
+            To keep the assessment fair and proxy-free, it has been stopped. Please contact your
+            counsellor to retake it.
           </p>
           <Link href="/dashboard" className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-3 rounded-xl shadow-glow">
             Back to Dashboard
@@ -493,6 +552,26 @@ export default function AssessmentFlow() {
                 <span className="text-[11px] font-bold text-red bg-red-soft border border-red-line rounded-full px-3 py-1">{total} questions · 6 sections · ~45s each</span>
               </div>
 
+              {/* exam language — questions & answers shown in the chosen language */}
+              <div className="rounded-xl border border-line bg-bg p-3.5 mb-4">
+                <p className="text-[12px] font-bold text-ink mb-0.5 flex items-center gap-1.5"><Languages className="w-4 h-4 text-red" /> Choose your exam language</p>
+                <p className="text-[11px] text-ink-3 mb-2.5">Questions and answer options will be shown in this language. The rest of the app stays in English.</p>
+                <div className="flex flex-wrap gap-2.5">
+                  {EXAM_LANGS.map((l) => {
+                    const selected = lang === l.id;
+                    return (
+                      <button key={l.id} type="button" onClick={() => setLang(l.id)}
+                        className={`flex-1 min-w-[120px] text-left px-4 py-2.5 rounded-xl border-2 transition-all ${selected ? 'border-red bg-red-soft' : 'border-line hover:border-red-line bg-white'}`}>
+                        <span className="block text-[15px] font-extrabold text-ink leading-tight">{l.native}</span>
+                        <span className="block text-[11px] text-ink-4 mt-0.5">
+                          {l.label}{!l.ready && ' · coming soon (shows English for now)'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* 6 sections — all visible in one view (3 × 2) */}
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 mb-4">
                 {SECTIONS.map((s) => (
@@ -520,8 +599,9 @@ export default function AssessmentFlow() {
                   <p className="text-[12px] font-bold text-red mb-1.5 flex items-center gap-1.5"><ShieldAlert className="w-4 h-4" /> Anti-proxy rules</p>
                   <ul className="text-[12px] text-ink-2 space-y-1 list-disc pl-4">
                     <li>The test runs in <b>full-screen mode</b> to keep it fair.</li>
-                    <li>Do <b>not</b> exit full screen, switch tabs or open other apps.</li>
-                    <li>Leaving full screen gives you <b>one warning</b>. A second time <b>ends the exam</b> automatically.</li>
+                    <li>Do <b>not</b> exit full screen, switch tabs, or open other apps/windows.</li>
+                    <li><b>Copying, pasting, right-click</b> and developer shortcuts are disabled.</li>
+                    <li>Any violation gives you <b>one warning</b>. A second <b>ends the exam</b> automatically.</li>
                     <li>Keep your phone away and answer on your own.</li>
                   </ul>
                 </div>
@@ -597,6 +677,7 @@ export default function AssessmentFlow() {
             const selected = answers[q.id];
             const locked = timedOut[q.id];
             const lowTime = secondsLeft <= 10;
+            const loc = localizeQuestion(q, lang); // translated prompt + option labels
             return (
               <motion.div
                 key="p4"
@@ -633,7 +714,7 @@ export default function AssessmentFlow() {
                     <div className="p-4 sm:p-6 lg:p-8 min-w-0">
                       <div className="max-w-2xl">
                         <p className="text-xs font-semibold text-ink-4 mb-2">{sec.scale}</p>
-                        <p className="text-lg font-bold text-ink mb-4">{q.prompt}</p>
+                        <p className="text-lg font-bold text-ink mb-4">{loc.prompt}</p>
 
                         {locked && (
                           <div className="flex items-center gap-2 bg-yellow-50 border border-warning/40 text-warning text-[12.5px] font-semibold rounded-xl px-3 py-2 mb-3">
@@ -642,13 +723,13 @@ export default function AssessmentFlow() {
                         )}
 
                         <div className="space-y-2.5">
-                          {q.options.map((opt, i) => {
+                          {loc.options.map((label, i) => {
                             const isSel = selected === i;
                             return (
                               <button key={`${q.id}-${i}`} onClick={() => setAnswer(q.id, i)} disabled={locked}
                                 className={`w-full text-left px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all flex items-center gap-3 ${isSel ? 'border-red bg-red-soft text-red' : 'border-line text-ink-2'} ${locked ? 'opacity-60 cursor-not-allowed' : 'hover:border-red-line'}`}>
                                 <span className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center ${isSel ? 'border-red' : 'border-ink-4'}`}>{isSel && <span className="w-2.5 h-2.5 rounded-full bg-red" />}</span>
-                                {opt.label}
+                                {label}
                               </button>
                             );
                           })}
@@ -745,12 +826,12 @@ export default function AssessmentFlow() {
               <div className="w-14 h-14 rounded-full bg-yellow-50 flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle className="w-7 h-7 text-warning" />
               </div>
-              <h3 className="text-xl font-extrabold text-ink mb-2">Stay in full screen</h3>
+              <h3 className="text-xl font-extrabold text-ink mb-2">Exam integrity warning</h3>
               <p className="text-sm text-ink-3 mb-1">
-                You left full-screen mode. This is your <b className="text-ink">only warning</b> — leaving again will
-                <b className="text-red"> end the exam</b> automatically.
+                {violationReason}. This is your <b className="text-ink">only warning</b> — another violation
+                (exiting full screen, switching tabs, or losing focus) will <b className="text-red"> end the exam</b> automatically.
               </p>
-              <p className="text-xs text-ink-4 mb-5">Please return to full screen to continue.</p>
+              <p className="text-xs text-ink-4 mb-5">Return to full screen and stay on this tab to continue.</p>
               <button onClick={() => { enterFullscreen(); setShowFsWarning(false); }}
                 className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-3 rounded-xl shadow-glow">
                 <Maximize className="w-4 h-4" /> Return to full screen
