@@ -9,6 +9,7 @@ import {
   HelpCircle, SlidersHorizontal, Telescope, Route,
   ChevronRight, ChevronLeft, ShieldCheck, Check, Eye, EyeOff,
   Clock, Flag, CheckCircle2, Circle, AlertCircle, ListChecks,
+  MapPin, Maximize, AlertTriangle, Lock, Loader2, ShieldAlert,
 } from 'lucide-react';
 import Logo from '@/components/brand/Logo';
 import {
@@ -73,6 +74,13 @@ export default function AssessmentFlow() {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [totalLeft, setTotalLeft] = useState(0);
   const [showPalette, setShowPalette] = useState(false);
+  const [timedOut, setTimedOut] = useState<Record<string, boolean>>({});
+  const [toast, setToast] = useState('');
+
+  // anti-proxy (full-screen) monitoring
+  const [fsWarnings, setFsWarnings] = useState(0);
+  const [showFsWarning, setShowFsWarning] = useState(false);
+  const [terminated, setTerminated] = useState(false);
 
   // submission
   const [submitting, setSubmitting] = useState(false);
@@ -86,12 +94,18 @@ export default function AssessmentFlow() {
        `Subject & stream guidance — ${milestoneLabel.replace('Career Analysis for ', '')}`]
     : [];
 
+  // ---- field validation ----
+  const isValidName = /^[a-zA-Z][a-zA-Z\s.'-]{1,}$/.test(name.trim());
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const isValidPhone = /^[6-9]\d{9}$/.test(phone.trim());
+  const ageNum = Number(age.trim());
+  const isValidAge = Number.isInteger(ageNum) && ageNum >= 10 && ageNum <= 20;
+  const isValidLocation = location.trim().length > 2;
   // Password is optional; if provided it must meet Firebase's 6-char minimum.
   const isValidPassword = !password.trim() || password.trim().length >= 6;
-  const canNextMilestone = name.trim().length > 1 && milestone;
+  const canNextMilestone = isValidName && milestone;
   const canNextStage = currentDoing && stage;
-  const canStart = isValidEmail && notRobot && isValidPassword;
+  const canStart = isValidEmail && isValidPhone && isValidAge && isValidLocation && notRobot && isValidPassword;
 
   // section boundaries
   const firstIndexOf = useMemo(() => {
@@ -100,7 +114,35 @@ export default function AssessmentFlow() {
     return map;
   }, []);
 
-  const setAnswer = (id: string, value: number) => setAnswers((s) => ({ ...s, [id]: value }));
+  const setAnswer = (id: string, value: number) => {
+    if (timedOut[id]) return; // locked: time already expired for this question
+    setAnswers((s) => ({ ...s, [id]: value }));
+    // If this question was flagged for review, changing the answer resolves it.
+    if (marked[id]) {
+      setMarked((m) => ({ ...m, [id]: false }));
+      setToast('Marked-for-review resolved — your answer was updated.');
+    }
+  };
+
+  // auto-dismiss the toast
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(''), 2600);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  // ---- anti-proxy full-screen helpers ----
+  const enterFullscreen = useCallback(() => {
+    const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+    const req = el.requestFullscreen ?? el.webkitRequestFullscreen;
+    if (req) req.call(el).catch(() => { /* denied — non-fatal */ });
+  }, []);
+  const exitFullscreen = useCallback(() => {
+    const d = document as Document & { webkitExitFullscreen?: () => Promise<void> };
+    if (d.fullscreenElement || (d as { webkitFullscreenElement?: Element }).webkitFullscreenElement) {
+      (d.exitFullscreen ?? d.webkitExitFullscreen)?.call(d).catch(() => {});
+    }
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     setSubmitting(true);
@@ -167,6 +209,8 @@ export default function AssessmentFlow() {
 
   // begin runner
   const startTest = () => {
+    enterFullscreen();
+    setFsWarnings(0);
     setQIndex(0);
     setIntroSection(QUESTIONS[0].section);
     setPhase(4);
@@ -183,12 +227,15 @@ export default function AssessmentFlow() {
   useEffect(() => {
     if (phase !== 4 || introSection) return;
     const q = QUESTIONS[qIndex];
+    // Already expired → keep it locked, don't restart the timer on revisit.
+    if (timedOut[q.id]) { setSecondsLeft(0); return; }
     setSecondsLeft(q.timeSec);
     const tick = setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) {
           clearInterval(tick);
-          // auto-advance when time runs out
+          // lock this question, then auto-advance when time runs out
+          setTimedOut((t) => ({ ...t, [q.id]: true }));
           goTo(qIndexRef.current + 1);
           return 0;
         }
@@ -196,7 +243,7 @@ export default function AssessmentFlow() {
       });
     }, 1000);
     return () => clearInterval(tick);
-  }, [qIndex, introSection, phase, goTo]);
+  }, [qIndex, introSection, phase, goTo, timedOut]);
 
   // global remaining time (sum of remaining questions' budgets)
   useEffect(() => {
@@ -207,8 +254,56 @@ export default function AssessmentFlow() {
     return () => clearInterval(t);
   }, [qIndex, introSection, phase]);
 
+  // anti-proxy: while the test is running the student must stay in full screen.
+  // First exit = one warning; a second exit terminates the exam.
+  useEffect(() => {
+    if (phase !== 4 || submitting || terminated) return;
+    const onFsChange = () => {
+      const inFs = Boolean(document.fullscreenElement || (document as { webkitFullscreenElement?: Element }).webkitFullscreenElement);
+      if (inFs) return;
+      setFsWarnings((w) => {
+        const next = w + 1;
+        if (next >= 2) { setTerminated(true); setShowFsWarning(false); }
+        else { setShowFsWarning(true); }
+        return next;
+      });
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
+  }, [phase, submitting, terminated]);
+
+  // leave full screen once the test is over
+  useEffect(() => {
+    if (submitting || terminated) exitFullscreen();
+  }, [submitting, terminated, exitFullscreen]);
+
   const answeredCount = Object.keys(answers).length;
   const markedCount = Object.values(marked).filter(Boolean).length;
+
+  /* ---------- exam terminated (proxy detected) ---------- */
+  if (terminated) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center px-4">
+        <div className="max-w-md w-full text-center bg-white rounded-2xl border border-red-line shadow-md p-8">
+          <div className="w-16 h-16 rounded-full bg-red-soft flex items-center justify-center mx-auto mb-5">
+            <ShieldAlert className="w-8 h-8 text-red" />
+          </div>
+          <h2 className="text-2xl font-extrabold text-ink mb-2">Assessment ended</h2>
+          <p className="text-ink-3 text-sm mb-6">
+            You left full-screen mode more than once during the test. To keep the assessment fair and
+            proxy-free, it has been stopped. Please contact your counsellor to retake it.
+          </p>
+          <Link href="/dashboard" className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-3 rounded-xl shadow-glow">
+            Back to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   /* ---------- submission overlay ---------- */
   if (submitting) {
@@ -283,6 +378,9 @@ export default function AssessmentFlow() {
                   <label className="text-sm font-semibold text-ink-2 block mb-1.5">Your Name</label>
                   <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your name"
                     className="w-full px-4 py-3 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+                  {name.trim() && !isValidName && (
+                    <p className="text-xs text-red mt-1.5">Enter a valid name (letters only, at least 2 characters).</p>
+                  )}
                 </div>
               </div>
               <p className="text-sm font-bold text-ink-2 mb-3">I need guidance for <span className="text-ink-4 font-medium">(Select any one)</span>:</p>
@@ -348,10 +446,16 @@ export default function AssessmentFlow() {
               <h2 className="text-2xl font-extrabold text-ink text-center mb-1">Let&apos;s start</h2>
               <p className="text-center text-sm text-ink-3 mb-6">Add a password to save your report to your OneGrasp account (optional).</p>
               <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="Email" value={email} onChange={setEmail} type="email" placeholder="you@example.com" />
-                <Field label="Location" value={location} onChange={setLocation} placeholder="City" />
-                <Field label="Phone number" value={phone} onChange={setPhone} placeholder="Optional" />
-                <Field label="Age (in years)" value={age} onChange={setAge} placeholder="e.g. 14" />
+                <Field label="Email" value={email} onChange={setEmail} type="email" placeholder="you@example.com"
+                  error={email.trim() && !isValidEmail ? 'Enter a valid email address.' : ''} />
+                <LocationField value={location} onChange={setLocation}
+                  error={location.trim() && !isValidLocation ? 'Pick your location from the suggestions.' : ''} />
+                <Field label="Phone number" value={phone} onChange={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))}
+                  type="tel" placeholder="10-digit mobile"
+                  error={phone.trim() && !isValidPhone ? 'Enter a valid 10-digit mobile number.' : ''} />
+                <Field label="Age (in years)" value={age} onChange={(v) => setAge(v.replace(/\D/g, '').slice(0, 2))}
+                  placeholder="e.g. 14"
+                  error={age.trim() && !isValidAge ? 'Age must be between 10 and 20.' : ''} />
                 <div className="sm:col-span-2">
                   <label className="text-sm font-semibold text-ink-2 block mb-1.5">Create a password <span className="text-ink-4 font-normal">(optional, min 6 chars)</span></label>
                   <div className="relative">
@@ -383,34 +487,51 @@ export default function AssessmentFlow() {
           {/* PHASE 3: INSTRUCTIONS + SECTION OVERVIEW */}
           {phase === 3 && (
             <motion.div key="p3" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              className="bg-white rounded-2xl border border-line shadow-sm p-6 sm:p-8 max-w-3xl mx-auto">
-              <div className="bg-red-soft border border-red-line rounded-xl px-4 py-2 mb-5"><h2 className="font-bold text-red">Instructions — please read</h2></div>
-              <p className="text-sm text-ink-2 mb-4">
-                The Career Profiler has <b>{total} questions</b> across <b>6 sections</b>. Each question has its own timer
-                (<b>40–50 seconds</b>) shown at the top. When the timer ends, the test moves to the next question automatically,
-                so don&apos;t leave a question blank. You can mark a question for review and jump back to it using the question
-                palette. You can also go back to earlier sections and update your answers at any time.
-              </p>
-              <div className="grid sm:grid-cols-2 gap-3 mb-5">
+              className="bg-white rounded-2xl border border-line shadow-sm p-5 sm:p-6 max-w-5xl mx-auto">
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                <h2 className="text-xl font-extrabold text-ink">Instructions — please read</h2>
+                <span className="text-[11px] font-bold text-red bg-red-soft border border-red-line rounded-full px-3 py-1">{total} questions · 6 sections · ~45s each</span>
+              </div>
+
+              {/* 6 sections — all visible in one view (3 × 2) */}
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 mb-4">
                 {SECTIONS.map((s) => (
-                  <div key={s.id} className="rounded-xl border border-line p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="w-6 h-6 rounded-full bg-red text-white text-xs font-bold flex items-center justify-center">{s.index}</span>
-                      <p className="font-bold text-sm text-ink">{s.title}</p>
-                      <span className="ml-auto text-[11px] text-ink-4">{questionsForSection(s.id).length} Q</span>
+                  <div key={s.id} className="rounded-xl border border-line p-3">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="w-5 h-5 rounded-full bg-red text-white text-[10px] font-bold flex items-center justify-center shrink-0">{s.index}</span>
+                      <p className="font-bold text-[13px] text-ink leading-tight">{s.title}</p>
+                      <span className="ml-auto text-[10px] text-ink-4 shrink-0">{questionsForSection(s.id).length} Q</span>
                     </div>
-                    <p className="text-xs text-ink-3 leading-relaxed">{s.blurb}</p>
+                    <p className="text-[11px] text-ink-3 leading-snug line-clamp-3">{s.blurb}</p>
                   </div>
                 ))}
               </div>
-              <ul className="text-sm text-ink-2 space-y-1 list-disc pl-5 mb-5">
-                <li>Sections 1–5 have <b>no right or wrong</b> answers — go with your instinct.</li>
-                <li>Section 6 (Analytical) <b>does</b> have correct answers — read carefully.</li>
-                <li>A status palette shows answered, not answered and marked-for-review questions.</li>
-              </ul>
+
+              <div className="grid md:grid-cols-2 gap-3 mb-4">
+                <div className="rounded-xl bg-bg border border-line p-3.5">
+                  <p className="text-[12px] font-bold text-ink mb-1.5 flex items-center gap-1.5"><ListChecks className="w-4 h-4 text-red" /> How it works</p>
+                  <ul className="text-[12px] text-ink-2 space-y-1 list-disc pl-4">
+                    <li>Each question has its own timer. When it ends, you move on automatically — <b>a timed-out question is locked</b>, so don&apos;t leave it blank.</li>
+                    <li>Sections 1–5 have <b>no right or wrong</b> answers. Section 6 (Analytical) <b>does</b> — read carefully.</li>
+                    <li>Use the palette to jump between questions and mark ones for review.</li>
+                  </ul>
+                </div>
+                <div className="rounded-xl bg-red-soft border border-red-line p-3.5">
+                  <p className="text-[12px] font-bold text-red mb-1.5 flex items-center gap-1.5"><ShieldAlert className="w-4 h-4" /> Anti-proxy rules</p>
+                  <ul className="text-[12px] text-ink-2 space-y-1 list-disc pl-4">
+                    <li>The test runs in <b>full-screen mode</b> to keep it fair.</li>
+                    <li>Do <b>not</b> exit full screen, switch tabs or open other apps.</li>
+                    <li>Leaving full screen gives you <b>one warning</b>. A second time <b>ends the exam</b> automatically.</li>
+                    <li>Keep your phone away and answer on your own.</li>
+                  </ul>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between">
                 <button onClick={() => setPhase(2)} className="inline-flex items-center gap-1 text-sm font-semibold text-ink-3 hover:text-ink"><ChevronLeft className="w-4 h-4" /> Back</button>
-                <button onClick={startTest} className="inline-flex items-center gap-2 bg-success text-white font-semibold px-6 py-3 rounded-xl shadow-sm">Start test <ChevronRight className="w-4 h-4" /></button>
+                <button onClick={startTest} className="inline-flex items-center gap-2 bg-success text-white font-semibold px-6 py-3 rounded-xl shadow-sm">
+                  <Maximize className="w-4 h-4" /> Start in full screen <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </motion.div>
           )}
@@ -474,6 +595,7 @@ export default function AssessmentFlow() {
             const sectionQs = questionsForSection(q.section);
             const withinIdx = sectionQs.findIndex((x) => x.id === q.id);
             const selected = answers[q.id];
+            const locked = timedOut[q.id];
             const lowTime = secondsLeft <= 10;
             return (
               <motion.div
@@ -506,40 +628,70 @@ export default function AssessmentFlow() {
                 </div>
 
                 <div className="grid lg:grid-cols-[1fr_280px] gap-0 bg-white border border-t-0 border-line shadow-sm overflow-hidden h-[calc(100%-3.5rem)]">
-                  {/* question */}
-                  <div className="p-4 sm:p-6 lg:p-8 overflow-y-auto min-h-0">
-                    <p className="text-xs font-semibold text-ink-4 mb-2">{sec.scale}</p>
-                    <p className="text-lg font-bold text-ink mb-5">{q.prompt}</p>
-                    <div className="space-y-2.5">
-                      {q.options.map((opt, i) => {
-                        const isSel = selected === i;
-                        return (
-                          <button key={`${q.id}-${i}`} onClick={() => setAnswer(q.id, i)}
-                            className={`w-full text-left px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all flex items-center gap-3 ${isSel ? 'border-red bg-red-soft text-red' : 'border-line hover:border-red-line text-ink-2'}`}>
-                            <span className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center ${isSel ? 'border-red' : 'border-ink-4'}`}>{isSel && <span className="w-2.5 h-2.5 rounded-full bg-red" />}</span>
-                            {opt.label}
+                  {/* question + illustration (use the full width) */}
+                  <div className="grid lg:grid-cols-[1.1fr_0.9fr] min-h-0 overflow-y-auto">
+                    <div className="p-4 sm:p-6 lg:p-8 min-w-0">
+                      <div className="max-w-2xl">
+                        <p className="text-xs font-semibold text-ink-4 mb-2">{sec.scale}</p>
+                        <p className="text-lg font-bold text-ink mb-4">{q.prompt}</p>
+
+                        {locked && (
+                          <div className="flex items-center gap-2 bg-yellow-50 border border-warning/40 text-warning text-[12.5px] font-semibold rounded-xl px-3 py-2 mb-3">
+                            <Lock className="w-4 h-4" /> Time exceeded — this question is locked and can no longer be changed.
+                          </div>
+                        )}
+
+                        <div className="space-y-2.5">
+                          {q.options.map((opt, i) => {
+                            const isSel = selected === i;
+                            return (
+                              <button key={`${q.id}-${i}`} onClick={() => setAnswer(q.id, i)} disabled={locked}
+                                className={`w-full text-left px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all flex items-center gap-3 ${isSel ? 'border-red bg-red-soft text-red' : 'border-line text-ink-2'} ${locked ? 'opacity-60 cursor-not-allowed' : 'hover:border-red-line'}`}>
+                                <span className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center ${isSel ? 'border-red' : 'border-ink-4'}`}>{isSel && <span className="w-2.5 h-2.5 rounded-full bg-red" />}</span>
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* actions — kept right under the answers */}
+                        <div className="mt-5 space-y-3">
+                          <div className="flex items-center gap-3">
+                            {qIndex < total - 1 ? (
+                              <button onClick={() => goTo(qIndex + 1)}
+                                className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-3 rounded-xl shadow-glow">Save &amp; Next <ChevronRight className="w-4 h-4" /></button>
+                            ) : (
+                              <button onClick={handleSubmit}
+                                className="inline-flex items-center gap-2 bg-success text-white font-semibold px-6 py-3 rounded-xl shadow-sm"><Check className="w-4 h-4" /> Submit test</button>
+                            )}
+                            <button onClick={() => setMarked((m) => ({ ...m, [q.id]: !m[q.id] }))}
+                              className={`inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl border transition-colors ${marked[q.id] ? 'border-warning bg-yellow-50 text-warning' : 'border-line text-ink-3 hover:border-warning'}`}>
+                              <Flag className="w-4 h-4" /> {marked[q.id] ? 'Marked' : 'Mark for review'}
+                            </button>
+                          </div>
+                          <button onClick={() => goTo(qIndex - 1)} disabled={qIndex === 0}
+                            className="inline-flex items-center gap-1 text-sm font-semibold text-ink-3 hover:text-ink disabled:opacity-40">
+                            <ChevronLeft className="w-4 h-4" /> Previous
                           </button>
-                        );
-                      })}
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="flex items-center justify-between mt-8 gap-3 flex-wrap">
-                      <button onClick={() => goTo(qIndex - 1)} disabled={qIndex === 0}
-                        className="inline-flex items-center gap-1 text-sm font-semibold text-ink-3 hover:text-ink disabled:opacity-40">
-                        <ChevronLeft className="w-4 h-4" /> Previous
-                      </button>
-                      <button onClick={() => setMarked((m) => ({ ...m, [q.id]: !m[q.id] }))}
-                        className={`inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl border transition-colors ${marked[q.id] ? 'border-warning bg-yellow-50 text-warning' : 'border-line text-ink-3 hover:border-warning'}`}>
-                        <Flag className="w-4 h-4" /> {marked[q.id] ? 'Marked' : 'Mark for review'}
-                      </button>
-                      {qIndex < total - 1 ? (
-                        <button onClick={() => goTo(qIndex + 1)}
-                          className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-3 rounded-xl shadow-glow">Save &amp; Next <ChevronRight className="w-4 h-4" /></button>
-                      ) : (
-                        <button onClick={handleSubmit}
-                          className="inline-flex items-center gap-2 bg-success text-white font-semibold px-6 py-3 rounded-xl shadow-sm"><Check className="w-4 h-4" /> Submit test</button>
-                      )}
-                    </div>
+                    {/* illustration panel — fills the spare width */}
+                    <aside className="hidden lg:flex flex-col items-center justify-center text-center bg-gradient-to-b from-red-soft/60 to-bg border-l border-line p-8">
+                      <AssessmentArt />
+                      <p className="text-[15px] font-extrabold text-ink mt-5">You&apos;re doing great{name ? `, ${name.split(' ')[0]}` : ''}!</p>
+                      <p className="text-[12.5px] text-ink-3 mt-1 max-w-xs">
+                        There are no wrong answers in this section — go with your first instinct. Every answer helps us map the careers that fit you best.
+                      </p>
+                      <div className="mt-5 w-full max-w-xs rounded-xl bg-white border border-line p-3 text-left">
+                        <p className="text-[11px] font-bold text-ink-2 mb-1.5">Your progress</p>
+                        <div className="h-2 rounded-full bg-line-2 overflow-hidden">
+                          <div className="h-full rounded-full bg-red" style={{ width: `${Math.round((answeredCount / total) * 100)}%` }} />
+                        </div>
+                        <p className="text-[11px] text-ink-4 mt-1.5">{answeredCount} of {total} answered</p>
+                      </div>
+                    </aside>
                   </div>
 
                   {/* palette (desktop) */}
@@ -571,7 +723,71 @@ export default function AssessmentFlow() {
           })()}
         </AnimatePresence>
       </div>
+
+      {/* toast (e.g. mark-for-review resolved) */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-ink text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2"
+          >
+            <CheckCircle2 className="w-4 h-4 text-success" /> {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* anti-proxy: full-screen warning (one chance) */}
+      <AnimatePresence>
+        {showFsWarning && !terminated && (
+          <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center px-4">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }}
+              className="bg-white rounded-2xl shadow-xl max-w-md w-full p-7 text-center">
+              <div className="w-14 h-14 rounded-full bg-yellow-50 flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-7 h-7 text-warning" />
+              </div>
+              <h3 className="text-xl font-extrabold text-ink mb-2">Stay in full screen</h3>
+              <p className="text-sm text-ink-3 mb-1">
+                You left full-screen mode. This is your <b className="text-ink">only warning</b> — leaving again will
+                <b className="text-red"> end the exam</b> automatically.
+              </p>
+              <p className="text-xs text-ink-4 mb-5">Please return to full screen to continue.</p>
+              <button onClick={() => { enterFullscreen(); setShowFsWarning(false); }}
+                className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-3 rounded-xl shadow-glow">
+                <Maximize className="w-4 h-4" /> Return to full screen
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+/* ---------------- illustration ---------------- */
+
+function AssessmentArt() {
+  return (
+    <svg viewBox="0 0 240 200" className="w-48 h-40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <ellipse cx="120" cy="178" rx="78" ry="12" fill="#E0242E" opacity="0.08" />
+      {/* clipboard */}
+      <rect x="74" y="44" width="92" height="120" rx="10" fill="#fff" stroke="#E6E3E0" strokeWidth="3" />
+      <rect x="100" y="36" width="40" height="18" rx="6" fill="#E0242E" />
+      <rect x="88" y="74" width="20" height="8" rx="4" fill="#2FA37C" />
+      <rect x="114" y="73" width="40" height="8" rx="4" fill="#EFEDEA" />
+      <rect x="88" y="96" width="20" height="8" rx="4" fill="#3F6CA6" />
+      <rect x="114" y="95" width="40" height="8" rx="4" fill="#EFEDEA" />
+      <rect x="88" y="118" width="20" height="8" rx="4" fill="#E8821E" />
+      <rect x="114" y="117" width="40" height="8" rx="4" fill="#EFEDEA" />
+      {/* check badge */}
+      <circle cx="158" cy="138" r="20" fill="#2FA37C" />
+      <path d="M150 138l6 6 12-13" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      {/* pencil */}
+      <g transform="rotate(38 196 70)">
+        <rect x="186" y="40" width="14" height="70" rx="3" fill="#F2B705" />
+        <path d="M186 110l7 14 7-14z" fill="#3a3a3a" />
+        <rect x="186" y="40" width="14" height="10" rx="3" fill="#E0242E" />
+      </g>
+    </svg>
   );
 }
 
@@ -607,6 +823,11 @@ function Palette({
   onJump: (i: number) => void;
 }) {
   let offset = 0;
+  const currentRef = useRef<HTMLButtonElement>(null);
+  // keep the active question visible as the test advances (incl. across sections)
+  useEffect(() => {
+    currentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [qIndex]);
   return (
     <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
       {SECTIONS.map((sec) => {
@@ -629,7 +850,7 @@ function Palette({
                 else if (isMarked) cls = 'bg-warning text-white border border-warning';
                 else if (wasVisited) cls = 'bg-red-soft border border-red-line text-red';
                 return (
-                  <button key={q.id} onClick={() => onJump(globalIdx)}
+                  <button key={q.id} ref={isCurrent ? currentRef : undefined} onClick={() => onJump(globalIdx)}
                     className={`relative h-8 rounded-md text-xs font-bold transition-all ${cls} ${isCurrent ? 'ring-2 ring-ink ring-offset-1' : ''}`}>
                     {globalIdx + 1}
                   </button>
@@ -644,14 +865,80 @@ function Palette({
   );
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string;
+function Field({ label, value, onChange, type = 'text', placeholder, error }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; error?: string;
 }) {
   return (
     <div>
       <label className="text-sm font-semibold text-ink-2 block mb-1.5">{label}</label>
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full px-4 py-3 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+        className={`w-full px-4 py-3 rounded-xl border bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red ${error ? 'border-red' : 'border-line'}`} />
+      {error && <p className="text-xs text-red mt-1.5">{error}</p>}
+    </div>
+  );
+}
+
+/* Location autocomplete backed by OpenStreetMap (Nominatim) — no API key needed. */
+function LocationField({ value, onChange, error }: { value: string; onChange: (v: string) => void; error?: string }) {
+  const [query, setQuery] = useState(value);
+  const [results, setResults] = useState<{ id: string; label: string }[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 3 || q === value) { setResults([]); return; }
+    setLoading(true);
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=0&limit=6&q=${encodeURIComponent(q)}`,
+          { signal: ctrl.signal, headers: { 'Accept-Language': 'en' } },
+        );
+        const data = (await res.json()) as { place_id: number; display_name: string }[];
+        setResults(data.map((d) => ({ id: String(d.place_id), label: d.display_name })));
+        setOpen(true);
+      } catch { /* ignore aborted / network */ } finally { setLoading(false); }
+    }, 350);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [query, value]);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => { if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  return (
+    <div className="relative" ref={boxRef}>
+      <label className="text-sm font-semibold text-ink-2 block mb-1.5">Location</label>
+      <div className="relative">
+        <MapPin className="w-4 h-4 text-ink-4 absolute left-3 top-1/2 -translate-y-1/2" />
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); onChange(''); }}
+          onFocus={() => results.length && setOpen(true)}
+          placeholder="Search your city / area"
+          className={`w-full pl-9 pr-9 py-3 rounded-xl border bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red ${error ? 'border-red' : 'border-line'}`}
+        />
+        {loading && <Loader2 className="w-4 h-4 text-ink-4 animate-spin absolute right-3 top-1/2 -translate-y-1/2" />}
+      </div>
+      {open && results.length > 0 && (
+        <ul className="absolute z-20 mt-1 w-full bg-white border border-line rounded-xl shadow-lg max-h-56 overflow-y-auto">
+          {results.map((r) => (
+            <li key={r.id}>
+              <button type="button"
+                onClick={() => { onChange(r.label); setQuery(r.label); setOpen(false); }}
+                className="w-full text-left px-3 py-2 text-[12.5px] text-ink-2 hover:bg-bg flex gap-2 items-start">
+                <MapPin className="w-3.5 h-3.5 text-red mt-0.5 shrink-0" /> {r.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <p className="text-xs text-red mt-1.5">{error}</p>}
     </div>
   );
 }
