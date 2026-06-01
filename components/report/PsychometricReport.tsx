@@ -17,6 +17,21 @@ import { getCareerDetail, buildSalary } from '@/constants/career-details';
 const RED = '#E0242E';
 const TOTAL_PAGES = 30;
 
+/* Multi-colour palette for bar charts (cycles like the reference report). */
+const PALETTE = ['#2FA37C', '#3F6CA6', '#E8821E', '#7E57A4', '#1C8EA8', '#6F8C4A', '#C0473B', '#4FA3A0'];
+function barColor(i: number) { return PALETTE[i % PALETTE.length]; }
+
+/* Donut / gauge colour by score band: green→blue→orange→red. */
+function levelColor(percent: number) {
+  if (percent >= 80) return '#1F9D57';
+  if (percent >= 60) return '#1D4ED8';
+  if (percent >= 40) return '#E8821E';
+  return RED;
+}
+
+/* Personality dimension accent colours. */
+const AXIS_COLORS: Record<string, string> = { EI: '#2E9BC4', SN: '#F2B705', TF: '#3CA56B', JP: '#8A5FB0' };
+
 /* ----------------------------- small helpers ----------------------------- */
 
 function normalizeTitle(t: string) {
@@ -126,24 +141,89 @@ function streamMatch(p: PsychometricProfile) {
 
 /* ----------------------------- UI atoms ----------------------------- */
 
-function BarRow({ label, percent, highlight }: { label: string; percent: number; highlight?: boolean }) {
+/* Axis-scaled horizontal bar chart with light gridlines + multi-colour bars,
+ * matching the reference report's interest/motivator/cluster charts. */
+function ChartCard({
+  data, colorMode = 'palette', labelWidth = 130,
+}: {
+  data: { key: string; label: string; percent: number }[];
+  colorMode?: 'palette' | 'level';
+  labelWidth?: number;
+}) {
+  const ticks = [0, 20, 40, 60, 80, 100];
+  const gridStyle = {
+    backgroundImage: 'repeating-linear-gradient(to right, #ECECEF 0, #ECECEF 1px, transparent 1px, transparent 20%)',
+  } as React.CSSProperties;
   return (
-    <div className="flex items-center gap-3 py-1">
-      <span className="w-40 shrink-0 text-[12px] text-ink-2 truncate">{label}</span>
-      <div className="flex-1 h-2.5 rounded-full bg-line-2 overflow-hidden">
-        <div className="h-full rounded-full" style={{ width: `${percent}%`, background: highlight ? RED : '#6C6E78' }} />
+    <div className="rounded-xl border border-line p-4 bg-white">
+      <div className="space-y-2">
+        {data.map((b, i) => {
+          const color = colorMode === 'level' ? levelColor(b.percent) : barColor(i);
+          return (
+            <div key={b.key} className="flex items-center gap-3">
+              <span className="shrink-0 text-[11px] text-ink-2 text-right leading-tight" style={{ width: labelWidth }}>{b.label}</span>
+              <div className="flex-1 relative h-4 rounded-sm" style={gridStyle}>
+                <div className="absolute inset-y-0 left-0 rounded-r-[3px] flex items-center justify-end pr-1.5"
+                  style={{ width: `${Math.max(2, b.percent)}%`, background: color }}>
+                  {b.percent >= 18 && <span className="text-[9px] font-bold text-white">{b.percent}%</span>}
+                </div>
+                {b.percent < 18 && (
+                  <span className="absolute top-1/2 -translate-y-1/2 text-[9px] font-bold"
+                    style={{ left: `calc(${Math.max(2, b.percent)}% + 4px)`, color }}>{b.percent}%</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <span className="w-9 text-right text-[12px] font-bold text-red">{percent}%</span>
+      {/* axis */}
+      <div className="flex mt-1" style={{ paddingLeft: labelWidth + 12 }}>
+        <div className="flex-1 flex justify-between text-[8.5px] text-ink-4">
+          {ticks.map((t) => <span key={t}>{t}</span>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Thin gauge used inside the career-path table. */
+function Gauge({ percent, color }: { percent: number; color: string }) {
+  return (
+    <div className="h-2 rounded-full bg-line-2 overflow-hidden">
+      <div className="h-full rounded-full" style={{ width: `${Math.max(4, percent)}%`, background: color }} />
+    </div>
+  );
+}
+
+/* Personality slider: two-tone track + knob at the preference boundary. */
+function MbtiSlider({ axis, left, right, leftPct, rightPct, dominant }: {
+  axis: string; left: string; right: string; leftPct: number; rightPct: number; dominant: string;
+}) {
+  const color = AXIS_COLORS[axis] ?? RED;
+  const dominantOnLeft = dominant === left;
+  const dominantPct = Math.max(leftPct, rightPct);
+  return (
+    <div>
+      <p className="text-center text-[12px] font-bold mb-1" style={{ color }}>{dominantPct}% {dominant}</p>
+      <div className="flex items-center gap-3">
+        <span className={`w-24 text-right text-[12px] ${dominantOnLeft ? 'font-bold text-ink' : 'text-ink-3'}`}>{left}</span>
+        <div className="flex-1 relative h-3 rounded-full overflow-hidden flex" style={{ background: `${color}26` }}>
+          <div className="h-full" style={{ width: `${leftPct}%`, background: dominantOnLeft ? color : `${color}55` }} />
+          <div className="h-full" style={{ width: `${rightPct}%`, background: dominantOnLeft ? `${color}55` : color }} />
+        </div>
+        <span className={`w-24 text-[12px] ${!dominantOnLeft ? 'font-bold text-ink' : 'text-ink-3'}`}>{right}</span>
+      </div>
     </div>
   );
 }
 
 function Donut({ percent, label }: { percent: number; label: string }) {
+  const color = levelColor(percent);
   return (
     <div className="flex flex-col items-center">
       <div className="relative w-20 h-20">
-        <div className="w-20 h-20 rounded-full" style={{ background: `conic-gradient(${RED} ${percent * 3.6}deg, #E9E9EC 0deg)` }} />
-        <div className="absolute inset-[10px] bg-white rounded-full flex items-center justify-center text-sm font-extrabold text-ink">{percent}%</div>
+        <div className="w-20 h-20 rounded-full" style={{ background: `conic-gradient(${color} ${percent * 3.6}deg, #E9E9EC 0deg)` }} />
+        <div className="absolute inset-[9px] bg-white rounded-full flex items-center justify-center text-sm font-extrabold" style={{ color }}>{percent}%</div>
       </div>
       <p className="text-[11px] font-bold text-ink-2 mt-1 text-center leading-tight">{label}</p>
     </div>
@@ -230,6 +310,12 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
         }
         .a4-page {
           margin-bottom: 12px;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        * {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
         @media print {
           body {
@@ -420,17 +506,8 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
           </div>
           <div className="space-y-5">
             {p.mbtiAxes.map((a) => (
-              <div key={a.axis}>
-                <p className="text-center text-[12px] font-bold text-ink mb-1">{Math.max(a.leftPct, a.rightPct)}% {a.dominant}</p>
-                <div className="flex items-center gap-3">
-                  <span className="w-24 text-right text-[12px] text-ink-3">{a.left}</span>
-                  <div className="flex-1 h-3 rounded-full bg-line-2 overflow-hidden flex">
-                    <div className="h-full bg-ink-4" style={{ width: `${a.leftPct}%` }} />
-                    <div className="h-full bg-red" style={{ width: `${a.rightPct}%` }} />
-                  </div>
-                  <span className="w-24 text-[12px] text-ink-3">{a.right}</span>
-                </div>
-              </div>
+              <MbtiSlider key={a.axis} axis={a.axis} left={a.left} right={a.right}
+                leftPct={a.leftPct} rightPct={a.rightPct} dominant={a.dominant} />
             ))}
           </div>
           <p className="mt-6 text-[12px] text-ink-3 leading-relaxed">
@@ -476,9 +553,7 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
         <Page n={9} name={p.name}>
           <H>Your career interest types</H>
           <p className="text-[12.5px] text-ink-3 mb-4">The Career Interest Assessment measures six interest patterns (RIASEC). Your strongest themes shape your best-fit careers.</p>
-          <div className="space-y-1.5">
-            {p.interests.map((b, i) => <BarRow key={b.key} label={b.label} percent={b.percent} highlight={i === 0} />)}
-          </div>
+          <ChartCard data={p.interests} />
           <div className="mt-6 grid grid-cols-3 gap-3">
             {p.interests.slice(0, 3).map((b, i) => (
               <div key={b.key} className="rounded-xl border border-line p-3 text-center">
@@ -508,9 +583,7 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
         <Page n={11} name={p.name}>
           <H>Your career motivators</H>
           <p className="text-[12.5px] text-ink-3 mb-4">Values that make work feel satisfying for you, rated from your dream-job preferences.</p>
-          <div className="space-y-1.5">
-            {p.motivators.map((b, i) => <BarRow key={b.key} label={b.label} percent={b.percent} highlight={i === 0} />)}
-          </div>
+          <ChartCard data={p.motivators} labelWidth={150} />
         </Page>
 
         {/* ---------- PAGE 12 - MOTIVATOR ANALYSIS ---------- */}
@@ -528,9 +601,7 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
         <Page n={13} name={p.name}>
           <H>Your learning style</H>
           <p className="text-[12.5px] text-ink-3 mb-4">Your dominant learning style is <b className="text-ink">{p.dominantLearning}</b>.</p>
-          <div className="space-y-1.5">
-            {p.learning.map((b, i) => <BarRow key={b.key} label={b.label} percent={b.percent} highlight={i === 0} />)}
-          </div>
+          <ChartCard data={p.learning} labelWidth={140} />
           <div className="mt-6 flex justify-center gap-6">
             {p.learning.slice(0, 2).map((b) => <Donut key={b.key} percent={b.percent} label={b.label} />)}
           </div>
@@ -549,9 +620,7 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
         <Page n={15} name={p.name}>
           <H>Your multiple intelligences</H>
           <p className="text-[12.5px] text-ink-3 mb-4">Howard Gardner&apos;s eight intelligences. Your strongest is <b className="text-ink">{p.dominantIntelligence}</b>.</p>
-          <div className="space-y-1.5">
-            {ints.map((b, i) => <BarRow key={b.key} label={b.label} percent={b.percent} highlight={i === 0} />)}
-          </div>
+          <ChartCard data={ints} labelWidth={185} />
         </Page>
 
         {/* ---------- PAGE 16 - INTELLIGENCES ANALYSIS ---------- */}
@@ -572,9 +641,7 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
         <Page n={17} name={p.name}>
           <H>Your emotional intelligence (EQ)</H>
           <p className="text-[12.5px] text-ink-3 mb-4">Derived from your interpersonal &amp; intrapersonal responses and personality - how you understand and manage emotions.</p>
-          <div className="space-y-1.5">
-            {p.eq.map((b) => <BarRow key={b.key} label={`${b.label} (${b.level})`} percent={b.percent} highlight={b.level === 'High'} />)}
-          </div>
+          <ChartCard colorMode="level" labelWidth={150} data={p.eq.map((b) => ({ key: b.key, label: b.label, percent: b.percent }))} />
           <div className="mt-6 grid grid-cols-3 gap-3">
             {p.eq.slice(0, 3).map((b) => (
               <div key={b.key} className="rounded-xl border border-line p-3">
@@ -618,9 +685,7 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
         <Page n={21} name={p.name}>
           <H>Your career clusters</H>
           <p className="text-[12.5px] text-ink-3 mb-4">Clusters group similar occupations. These are the best clusters for you to explore.</p>
-          <div className="space-y-1.5">
-            {p.clusters.map((b, i) => <BarRow key={b.key} label={b.label} percent={b.percent} highlight={i === 0} />)}
-          </div>
+          <ChartCard data={p.clusters} labelWidth={170} />
         </Page>
 
         {/* ---------- PAGES 22-23 - SELECTED CLUSTERS ---------- */}
@@ -654,20 +719,24 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
           <Page key={`subj-${pageIdx}`} n={24 + pageIdx} name={p.name}>
             <H>Top subject recommendations for you</H>
             {streams.slice(pageIdx * 2, pageIdx * 2 + 2).map((st, i) => (
-              <div key={st.name} className="mb-5">
-                <div className="flex items-center gap-3 mb-2">
+              <div key={st.name} className="mb-5 rounded-xl border border-line p-4">
+                <div className="flex items-center gap-3 mb-3">
                   <span className="text-2xl">{st.icon}</span>
                   <p className="text-[14px] font-bold text-ink">{pageIdx * 2 + i + 1}. {st.name}</p>
-                  <span className="ml-auto text-[13px] font-extrabold text-red">{st.percent}%</span>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-line p-3">
-                    <p className="text-[11px] font-bold text-red uppercase mb-1">Mandatory</p>
-                    <p className="text-[12px] text-ink-2">{st.mandatory.join(' · ')}</p>
+                <div className="grid grid-cols-[120px_1fr] gap-4 items-center">
+                  <div className="flex flex-col items-center">
+                    <Donut percent={st.percent} label="Suitability" />
+                    <div className="mt-2 text-center">
+                      <p className="text-[10px] font-bold text-red uppercase">Mandatory</p>
+                      <p className="text-[11px] text-ink-2 leading-tight">{st.mandatory.join(' · ')}</p>
+                    </div>
                   </div>
-                  <div className="rounded-lg border border-line p-3">
-                    <p className="text-[11px] font-bold text-ink-4 uppercase mb-1">Optional</p>
-                    <p className="text-[12px] text-ink-2">{st.optional.join(' · ')}</p>
+                  <div>
+                    <p className="text-[10px] font-bold text-ink-4 uppercase mb-1.5">Recommended optional subjects</p>
+                    <ChartCard labelWidth={120} data={st.optional.map((name, j) => ({
+                      key: name, label: name, percent: Math.max(15, 55 - j * 8),
+                    }))} />
                   </div>
                 </div>
               </div>
@@ -684,13 +753,18 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
               <div className="space-y-2">
                 {p.topCareers.slice(0, 6).map((c, i) => (
                   <div key={c.title} className="flex items-center gap-3 p-2.5 rounded-xl border border-line">
-                    <span className="w-7 h-7 rounded-full bg-red text-white text-sm font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+                    <span className="w-7 h-7 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0" style={{ background: barColor(i) }}>{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-ink text-[13px]">{c.title}</p>
                       <p className="text-[11px] text-ink-4 truncate">{c.roles} · {c.cluster}</p>
                     </div>
-                    <span className="text-[13px] font-bold text-ink">{c.match}%</span>
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${VERDICT_STYLE[c.verdict]}`}>{c.verdict}</span>
+                    <div className="w-28 shrink-0">
+                      <div className="flex justify-between items-center mb-0.5">
+                        <span className="text-[11px] font-bold" style={{ color: levelColor(c.match) }}>{c.match}%</span>
+                      </div>
+                      <Gauge percent={c.match} color={levelColor(c.match)} />
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${VERDICT_STYLE[c.verdict]}`}>{c.verdict}</span>
                   </div>
                 ))}
               </div>
