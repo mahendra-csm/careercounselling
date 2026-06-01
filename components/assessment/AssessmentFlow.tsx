@@ -113,39 +113,41 @@ export default function AssessmentFlow() {
       step('Building your personalised report…', 55);
       saveLocalReport(id, profile);
 
+      // Authentication + cloud save are enhancements. The report is already
+      // saved locally, so anything that fails here must NOT block the redirect.
       step('Saving your report…', 80);
-      const emailValue = email.trim();
-      const passwordValue = password.trim();
-      let session = getSession();
+      try {
+        const emailValue = email.trim();
+        const passwordValue = password.trim();
+        let session = getSession();
 
-      if (!session && emailValue && passwordValue) {
-        try {
-          session = await signIn(emailValue, passwordValue);
-        } catch (err) {
-          const code = (err as { code?: string } | null)?.code;
-          if (code === 'EMAIL_NOT_FOUND') {
-            if (!isStrongPassword) {
-              throw new Error('Use at least 8 characters, including 1 uppercase letter and 1 number, to create a new account.');
+        if (!session && emailValue && passwordValue) {
+          try {
+            session = await signIn(emailValue, passwordValue);
+          } catch (err) {
+            const code = (err as { code?: string } | null)?.code;
+            if (code === 'EMAIL_NOT_FOUND' && isStrongPassword) {
+              session = await signUp(emailValue, passwordValue, name.trim());
             }
-            session = await signUp(emailValue, passwordValue, name.trim());
-          } else {
-            throw err;
+            // Any other auth failure (wrong password, sign-in disabled, etc.)
+            // is ignored — the report stays available locally.
           }
         }
-      }
 
-      if (session?.emailVerified) {
-        const { saveReport } = await import('@/lib/firebase');
-        await saveReport(id, profile, session);
-      } else if (session) {
-        step('Verification email sent — your report is saved locally for now.', 90);
+        if (session?.emailVerified) {
+          const { saveReport } = await import('@/lib/firebase');
+          await saveReport(id, profile, session);
+        }
+      } catch {
+        // Non-fatal: fall through to the local report.
       }
 
       step('Report ready — redirecting…', 100);
-      setTimeout(() => router.push(`/report/view?id=${id}`), 600);
+      router.push(`/report/view?id=${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
-      setSubmitting(false);
+      // Keep the overlay visible so the error is actually shown, instead of
+      // silently dropping the user back onto the last question.
     }
   }, [answers, name, password, email, router]);
 
@@ -224,7 +226,21 @@ export default function AssessmentFlow() {
           </div>
           <h2 className="text-2xl font-extrabold text-ink mb-2">Analysing your profile{name ? `, ${name.split(' ')[0]}` : ''}</h2>
           <p className="text-ink-3 text-sm">{statusMsg}</p>
-          {error && <div className="mt-6 bg-red-soft border border-red-line rounded-xl p-4 text-sm text-red">{error}</div>}
+          {error && (
+            <div className="mt-6 text-left">
+              <div className="bg-red-soft border border-red-line rounded-xl p-4 text-sm text-red">{error}</div>
+              <div className="flex items-center justify-center gap-3 mt-4">
+                <button onClick={() => { setError(''); setSubmitting(false); }}
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-ink-3 hover:text-ink px-5 py-2.5 rounded-xl border border-line bg-white">
+                  Back to test
+                </button>
+                <button onClick={() => handleSubmit()}
+                  className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-2.5 rounded-xl shadow-glow">
+                  Try again
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
