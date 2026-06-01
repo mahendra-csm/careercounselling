@@ -1,15 +1,14 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
-import { signIn, signOut } from '@/lib/firebase';
+import { signIn } from '@/lib/firebase';
 import Logo from '@/components/brand/Logo';
 
 const schema = z.object({
@@ -19,16 +18,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function SignInPage() {
-  return (
-    <Suspense fallback={<SignInFallback />}>
-      <SignInContent />
-    </Suspense>
-  );
-}
-
-function SignInContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const {
@@ -40,12 +30,7 @@ function SignInContent() {
   const onSubmit = async (data: FormData) => {
     setError('');
     try {
-      const session = await signIn(data.email, data.password);
-      if (!session.emailVerified) {
-        signOut();
-        setError('Please verify your email before signing in. Check your inbox for the verification link.');
-        return;
-      }
+      await signIn(data.email, data.password);
       router.push('/dashboard');
       router.refresh();
     } catch (err) {
@@ -70,11 +55,6 @@ function SignInContent() {
         </div>
 
         <div className="bg-white rounded-2xl border border-line shadow-md p-8">
-          {searchParams.get('verify') === '1' && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-5 text-sm text-ink-2">
-              We sent a verification email. Please verify your account, then come back and sign in.
-            </div>
-          )}
           {error && (
             <div className="bg-red-soft border border-red-line rounded-xl p-3 mb-5 text-sm text-red font-medium">
               {error}
@@ -141,20 +121,6 @@ function SignInContent() {
           </p>
         </div>
       </motion.div>
-    </div>
-  );
-}
-
-function SignInFallback() {
-  return (
-    <div className="min-h-screen bg-bg flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl border border-line shadow-md p-8 text-center">
-        <div className="inline-flex items-center mb-6">
-          <Logo size={38} />
-        </div>
-        <h1 className="text-2xl font-extrabold text-ink mb-1">Welcome back</h1>
-        <p className="text-ink-3 text-sm">Loading sign-in...</p>
-      </div>
     </div>
   );
 }

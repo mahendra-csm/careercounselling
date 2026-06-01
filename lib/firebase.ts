@@ -77,18 +77,7 @@ function friendlyAuthError(code: string) {
   return 'Authentication failed. Please try again.';
 }
 
-async function sendVerificationEmail(idToken: string) {
-  try {
-    await fetch(`${IDENTITY}:sendOobCode?key=${firebaseConfig.apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken, requestType: 'VERIFY_EMAIL' }),
-    });
-  } catch {
-    // Non-fatal — the user can still sign in and request another verification later.
-  }
-}
-
+/** Register: email + password + name. Creates the Firebase account and signs the user in. */
 export async function signUp(email: string, password: string, name?: string): Promise<FbSession> {
   const data = await identityCall('signUp', { email, password });
   if (name) {
@@ -100,18 +89,21 @@ export async function signUp(email: string, password: string, name?: string): Pr
       });
     } catch { /* non-fatal */ }
   }
-  await sendVerificationEmail(data.idToken);
-  const session: FbSession = { idToken: data.idToken, refreshToken: data.refreshToken, uid: data.localId, email: data.email, name: name || data.email.split('@')[0], emailVerified: false };
+  const session: FbSession = {
+    idToken: data.idToken, refreshToken: data.refreshToken, uid: data.localId,
+    email: data.email, name: name || data.email.split('@')[0], emailVerified: true,
+  };
   setSession(session);
   return session;
 }
 
+/** Login: email + password. Checks the credentials against Firebase. */
 export async function signIn(email: string, password: string): Promise<FbSession> {
   const data = await identityCall('signInWithPassword', { email, password });
   const session: FbSession = {
     idToken: data.idToken, refreshToken: data.refreshToken, uid: data.localId,
     email: data.email, name: data.displayName || data.email.split('@')[0],
-    emailVerified: Boolean(data.emailVerified),
+    emailVerified: true,
   };
   setSession(session);
   return session;

@@ -8,17 +8,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
-import { signOut, signUp } from '@/lib/firebase';
+import { signUp } from '@/lib/firebase';
 import Logo from '@/components/brand/Logo';
 
 const schema = z.object({
   name: z.string().min(2, 'Tell us your name (at least 2 chars)'),
   email: z.string().email('That email looks off — try again?'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Include at least one uppercase letter')
-    .regex(/[0-9]/, 'Include at least one number'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -36,8 +32,7 @@ export default function SignUpPage() {
     setError('');
     try {
       await signUp(data.email, data.password, data.name);
-      signOut();
-      router.push('/sign-in?verify=1');
+      router.push('/dashboard');
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create your account. Please try again.');
@@ -100,7 +95,7 @@ export default function SignUpPage() {
                 <input
                   {...register('password')}
                   type={showPw ? 'text' : 'password'}
-                  placeholder="Min 8 chars, 1 uppercase, 1 number"
+                  placeholder="Min 6 characters"
                   className="w-full px-4 py-3 rounded-xl border border-line bg-bg text-ink placeholder:text-ink-4 focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red transition-all text-sm pr-10"
                 />
                 <button

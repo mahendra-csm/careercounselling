@@ -135,7 +135,7 @@ export default function AssessmentFlow() {
           }
         }
 
-        if (session?.emailVerified) {
+        if (session) {
           const { saveReport } = await import('@/lib/firebase');
           await saveReport(id, profile, session);
         }
