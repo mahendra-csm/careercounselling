@@ -78,7 +78,7 @@ export default function Hero() {
               href="/dashboard/abroad-applications"
               className="inline-flex items-center justify-center gap-2 bg-red text-white font-semibold px-6 py-3.5 rounded-xl border border-white/20 hover:bg-red-dark transition-all text-base shadow-glow"
             >
-              Overseas Admission
+              Student Dashboard
             </Link>
           </motion.div>
 
