@@ -23,6 +23,7 @@ export interface FbSession {
   uid: string;
   email: string;
   name: string;
+  emailVerified: boolean;
 }
 
 // ---------- session (localStorage) ----------
@@ -59,9 +60,11 @@ async function identityCall(action: string, body: Record<string, unknown>) {
   const data = await res.json();
   if (!res.ok) {
     const code = data?.error?.message || 'AUTH_ERROR';
-    throw new Error(friendlyAuthError(code));
+    const err = new Error(friendlyAuthError(code)) as Error & { code?: string };
+    err.code = code;
+    throw err;
   }
-  return data as { idToken: string; refreshToken: string; localId: string; email: string; displayName?: string };
+  return data as { idToken: string; refreshToken: string; localId: string; email: string; displayName?: string; emailVerified?: boolean };
 }
 
 function friendlyAuthError(code: string) {
@@ -72,6 +75,18 @@ function friendlyAuthError(code: string) {
   if (code.includes('INVALID_EMAIL')) return 'That email looks off — try again?';
   if (code.includes('OPERATION_NOT_ALLOWED')) return 'Email/password sign-in is disabled for this project. Enable it in Firebase Auth.';
   return 'Authentication failed. Please try again.';
+}
+
+async function sendVerificationEmail(idToken: string) {
+  try {
+    await fetch(`${IDENTITY}:sendOobCode?key=${firebaseConfig.apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken, requestType: 'VERIFY_EMAIL' }),
+    });
+  } catch {
+    // Non-fatal — the user can still sign in and request another verification later.
+  }
 }
 
 export async function signUp(email: string, password: string, name?: string): Promise<FbSession> {
@@ -85,7 +100,8 @@ export async function signUp(email: string, password: string, name?: string): Pr
       });
     } catch { /* non-fatal */ }
   }
-  const session: FbSession = { idToken: data.idToken, refreshToken: data.refreshToken, uid: data.localId, email: data.email, name: name || data.email.split('@')[0] };
+  await sendVerificationEmail(data.idToken);
+  const session: FbSession = { idToken: data.idToken, refreshToken: data.refreshToken, uid: data.localId, email: data.email, name: name || data.email.split('@')[0], emailVerified: false };
   setSession(session);
   return session;
 }
@@ -95,6 +111,7 @@ export async function signIn(email: string, password: string): Promise<FbSession
   const session: FbSession = {
     idToken: data.idToken, refreshToken: data.refreshToken, uid: data.localId,
     email: data.email, name: data.displayName || data.email.split('@')[0],
+    emailVerified: Boolean(data.emailVerified),
   };
   setSession(session);
   return session;

@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
-import { signUp } from '@/lib/firebase';
+import { signOut, signUp } from '@/lib/firebase';
 import Logo from '@/components/brand/Logo';
 
 const schema = z.object({
@@ -36,7 +36,8 @@ export default function SignUpPage() {
     setError('');
     try {
       await signUp(data.email, data.password, data.name);
-      router.push('/dashboard');
+      signOut();
+      router.push('/sign-in?verify=1');
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create your account. Please try again.');

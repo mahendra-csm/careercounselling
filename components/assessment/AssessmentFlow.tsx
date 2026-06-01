@@ -1,16 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   School, BookOpen, Compass, GraduationCap, Briefcase,
   HelpCircle, SlidersHorizontal, Telescope, Route,
-  ChevronRight, ChevronLeft, Loader2, ShieldCheck, Check, Eye, EyeOff,
+  ChevronRight, ChevronLeft, ShieldCheck, Check, Eye, EyeOff,
+  Clock, Flag, CheckCircle2, Circle, AlertCircle, ListChecks,
 } from 'lucide-react';
 import Logo from '@/components/brand/Logo';
-import { QUESTIONS, scorePsychometric, type AnswerMap } from '@/lib/psychometric';
+import {
+  QUESTIONS, SECTIONS, questionsForSection,
+  type AnswerMap, type SectionId,
+} from '@/lib/assessment-questions';
+import { scoreAssessment } from '@/lib/assessment-engine';
 import { makeReportId, saveLocalReport } from '@/lib/report-store';
 import { signUp, signIn, getSession } from '@/lib/firebase';
 
@@ -33,13 +38,19 @@ const STAGES: { id: StageKey; label: string; icon: typeof HelpCircle }[] = [
 
 const TABS = ['Set your milestone', 'Select your current stage', 'Start assessment'];
 
+function fmt(sec: number) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 export default function AssessmentFlow() {
   const router = useRouter();
   const [phase, setPhase] = useState(0);
+  const isQuestionPhase = phase === 4;
 
   // collected data
   const [name, setName] = useState('');
-  const [dreamCareer, setDreamCareer] = useState('');
   const [milestone, setMilestone] = useState<string>('');
   const [currentDoing, setCurrentDoing] = useState('');
   const [stage, setStage] = useState<StageKey | ''>('');
@@ -52,8 +63,16 @@ export default function AssessmentFlow() {
   const [notRobot, setNotRobot] = useState(false);
 
   // question runner
+  const total = QUESTIONS.length;
   const [qIndex, setQIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>({});
+  const [marked, setMarked] = useState<Record<string, boolean>>({});
+  const [visited, setVisited] = useState<Record<string, boolean>>({});
+  const [introSection, setIntroSection] = useState<SectionId | null>(null);
+  const [ackIntros, setAckIntros] = useState<Record<string, boolean>>({});
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [totalLeft, setTotalLeft] = useState(0);
+  const [showPalette, setShowPalette] = useState(false);
 
   // submission
   const [submitting, setSubmitting] = useState(false);
@@ -67,39 +86,59 @@ export default function AssessmentFlow() {
        `Subject & stream guidance — ${milestoneLabel.replace('Career Analysis for ', '')}`]
     : [];
 
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const isStrongPassword = !password.trim() || (/^(?=.*[A-Z])(?=.*\d).{8,}$/.test(password.trim()));
   const canNextMilestone = name.trim().length > 1 && milestone;
   const canNextStage = currentDoing && stage;
-  const canStart = email.trim().includes('@') && notRobot;
+  const canStart = isValidEmail && notRobot && isStrongPassword;
 
-  const totalQ = QUESTIONS.length;
+  // section boundaries
+  const firstIndexOf = useMemo(() => {
+    const map: Record<string, number> = {};
+    QUESTIONS.forEach((q, i) => { if (map[q.section] === undefined) map[q.section] = i; });
+    return map;
+  }, []);
+
   const setAnswer = (id: string, value: number) => setAnswers((s) => ({ ...s, [id]: value }));
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     setSubmitting(true);
     setError('');
     const step = (msg: string, pct: number) => { setStatusMsg(msg); setProgress(pct); };
     try {
       step('Scoring your answers…', 25);
-      const profile = scorePsychometric(answers, name, dreamCareer);
+      const profile = scoreAssessment(answers, name);
       const id = makeReportId();
 
       step('Building your personalised report…', 55);
       saveLocalReport(id, profile);
 
-      // Firebase: sign in/up if a password was provided, then save to Firestore
       step('Saving your report…', 80);
+      const emailValue = email.trim();
+      const passwordValue = password.trim();
       let session = getSession();
-      if (!session && password.trim().length >= 6 && email.includes('@')) {
+
+      if (!session && emailValue && passwordValue) {
         try {
-          session = await signUp(email.trim(), password.trim(), name.trim());
-        } catch (e) {
-          // account may exist → try sign in
-          try { session = await signIn(email.trim(), password.trim()); } catch { /* continue anonymously */ }
+          session = await signIn(emailValue, passwordValue);
+        } catch (err) {
+          const code = (err as { code?: string } | null)?.code;
+          if (code === 'EMAIL_NOT_FOUND') {
+            if (!isStrongPassword) {
+              throw new Error('Use at least 8 characters, including 1 uppercase letter and 1 number, to create a new account.');
+            }
+            session = await signUp(emailValue, passwordValue, name.trim());
+          } else {
+            throw err;
+          }
         }
       }
-      if (session) {
+
+      if (session?.emailVerified) {
         const { saveReport } = await import('@/lib/firebase');
         await saveReport(id, profile, session);
+      } else if (session) {
+        step('Verification email sent — your report is saved locally for now.', 90);
       }
 
       step('Report ready — redirecting…', 100);
@@ -108,7 +147,65 @@ export default function AssessmentFlow() {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
       setSubmitting(false);
     }
+  }, [answers, name, password, email, router]);
+
+  // navigate to an overall question index; show a section intro the first time
+  // we enter a new section.
+  const goTo = useCallback((idx: number) => {
+    if (idx >= total) { handleSubmit(); return; }
+    const clamped = Math.max(0, idx);
+    const q = QUESTIONS[clamped];
+    setQIndex(clamped);
+    setVisited((v) => ({ ...v, [q.id]: true }));
+    if (firstIndexOf[q.section] === clamped && !ackIntros[q.section]) {
+      setIntroSection(q.section);
+    }
+  }, [total, handleSubmit, firstIndexOf, ackIntros]);
+
+  // begin runner
+  const startTest = () => {
+    setQIndex(0);
+    setIntroSection(QUESTIONS[0].section);
+    setPhase(4);
   };
+
+  const beginSection = () => {
+    if (introSection) setAckIntros((a) => ({ ...a, [introSection]: true }));
+    setIntroSection(null);
+  };
+
+  // per-question + total timers
+  const qIndexRef = useRef(qIndex);
+  qIndexRef.current = qIndex;
+  useEffect(() => {
+    if (phase !== 4 || introSection) return;
+    const q = QUESTIONS[qIndex];
+    setSecondsLeft(q.timeSec);
+    const tick = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(tick);
+          // auto-advance when time runs out
+          goTo(qIndexRef.current + 1);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [qIndex, introSection, phase, goTo]);
+
+  // global remaining time (sum of remaining questions' budgets)
+  useEffect(() => {
+    if (phase !== 4 || introSection) return;
+    const remainingBudget = QUESTIONS.slice(qIndex).reduce((s, q) => s + q.timeSec, 0);
+    setTotalLeft(remainingBudget);
+    const t = setInterval(() => setTotalLeft((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [qIndex, introSection, phase]);
+
+  const answeredCount = Object.keys(answers).length;
+  const markedCount = Object.values(marked).filter(Boolean).length;
 
   /* ---------- submission overlay ---------- */
   if (submitting) {
@@ -142,20 +239,22 @@ export default function AssessmentFlow() {
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6">
-        <div className="grid grid-cols-3 rounded-xl overflow-hidden border border-line bg-white">
-          {TABS.map((t, i) => {
-            const active = phase >= i;
-            const current = (phase <= 2 && phase === i) || (phase >= 3 && i === 2);
-            return (
-              <div key={t} className={`px-3 py-3 text-center text-xs sm:text-sm font-bold uppercase tracking-wide transition-colors ${
-                current ? 'bg-red text-white' : active ? 'bg-red-soft text-red' : 'text-ink-4'}`}>{t}</div>
-            );
-          })}
+      {phase < 4 && (
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6">
+          <div className="grid grid-cols-3 rounded-xl overflow-hidden border border-line bg-white">
+            {TABS.map((t, i) => {
+              const active = phase >= i;
+              const current = phase === i;
+              return (
+                <div key={t} className={`px-3 py-3 text-center text-xs sm:text-sm font-bold uppercase tracking-wide transition-colors ${
+                  current ? 'bg-red text-white' : active ? 'bg-red-soft text-red' : 'text-ink-4'}`}>{t}</div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+      <div className={isQuestionPhase ? 'w-full px-0 py-0' : 'max-w-5xl mx-auto px-4 sm:px-6 py-8'}>
         <AnimatePresence mode="wait">
           {/* PHASE 0: MILESTONE */}
           {phase === 0 && (
@@ -166,11 +265,6 @@ export default function AssessmentFlow() {
                 <div>
                   <label className="text-sm font-semibold text-ink-2 block mb-1.5">Your Name</label>
                   <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your name"
-                    className="w-full px-4 py-3 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-ink-2 block mb-1.5">Favourite path <span className="text-ink-4 font-normal">(optional)</span></label>
-                  <input value={dreamCareer} onChange={(e) => setDreamCareer(e.target.value)} placeholder="e.g. Doctor, Designer"
                     className="w-full px-4 py-3 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
                 </div>
               </div>
@@ -230,7 +324,7 @@ export default function AssessmentFlow() {
             </motion.div>
           )}
 
-          {/* PHASE 2: START ASSESSMENT (details) */}
+          {/* PHASE 2: DETAILS */}
           {phase === 2 && (
             <motion.div key="p2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
               className="bg-white rounded-2xl border border-line shadow-sm p-6 sm:p-8 max-w-2xl mx-auto">
@@ -266,72 +360,266 @@ export default function AssessmentFlow() {
             </motion.div>
           )}
 
-          {/* PHASE 3: INSTRUCTIONS */}
+          {/* PHASE 3: INSTRUCTIONS + SECTION OVERVIEW */}
           {phase === 3 && (
             <motion.div key="p3" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              className="bg-white rounded-2xl border border-line shadow-sm p-6 sm:p-8 max-w-2xl mx-auto">
-              <div className="bg-red-soft border border-red-line rounded-xl px-4 py-2 mb-5"><h2 className="font-bold text-red">Instructions</h2></div>
-              <p className="text-sm text-ink-2 mb-4">The Career Profiler consists of {totalQ} psychometric questions covering your personality, interests, emotional intelligence and skills. Read carefully.</p>
-              <p className="text-sm font-bold text-red mb-2">Try not to think too much while answering:</p>
+              className="bg-white rounded-2xl border border-line shadow-sm p-6 sm:p-8 max-w-3xl mx-auto">
+              <div className="bg-red-soft border border-red-line rounded-xl px-4 py-2 mb-5"><h2 className="font-bold text-red">Instructions — please read</h2></div>
+              <p className="text-sm text-ink-2 mb-4">
+                The Career Profiler has <b>{total} questions</b> across <b>6 sections</b>. Each question has its own timer
+                (<b>40–50 seconds</b>) shown at the top. When the timer ends, the test moves to the next question automatically,
+                so don&apos;t leave a question blank. You can mark a question for review and jump back to it using the question
+                palette. You can also go back to earlier sections and update your answers at any time.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3 mb-5">
+                {SECTIONS.map((s) => (
+                  <div key={s.id} className="rounded-xl border border-line p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="w-6 h-6 rounded-full bg-red text-white text-xs font-bold flex items-center justify-center">{s.index}</span>
+                      <p className="font-bold text-sm text-ink">{s.title}</p>
+                      <span className="ml-auto text-[11px] text-ink-4">{questionsForSection(s.id).length} Q</span>
+                    </div>
+                    <p className="text-xs text-ink-3 leading-relaxed">{s.blurb}</p>
+                  </div>
+                ))}
+              </div>
               <ul className="text-sm text-ink-2 space-y-1 list-disc pl-5 mb-5">
-                <li>Answer honestly — there are <b>no right or wrong</b> answers.</li>
-                <li>There is <b>no time limit</b>. Take your time.</li>
-                <li>Go with your first instinct for each statement.</li>
-                <li>Your answers combine into one personalised career report.</li>
+                <li>Sections 1–5 have <b>no right or wrong</b> answers — go with your instinct.</li>
+                <li>Section 6 (Analytical) <b>does</b> have correct answers — read carefully.</li>
+                <li>A status palette shows answered, not answered and marked-for-review questions.</li>
               </ul>
               <div className="flex items-center justify-between">
                 <button onClick={() => setPhase(2)} className="inline-flex items-center gap-1 text-sm font-semibold text-ink-3 hover:text-ink"><ChevronLeft className="w-4 h-4" /> Back</button>
-                <button onClick={() => { setQIndex(0); setPhase(4); }} className="inline-flex items-center gap-2 bg-success text-white font-semibold px-6 py-3 rounded-xl shadow-sm">Start test <ChevronRight className="w-4 h-4" /></button>
+                <button onClick={startTest} className="inline-flex items-center gap-2 bg-success text-white font-semibold px-6 py-3 rounded-xl shadow-sm">Start test <ChevronRight className="w-4 h-4" /></button>
               </div>
             </motion.div>
           )}
 
-          {/* PHASE 4: QUESTIONS */}
-          {phase === 4 && (
-            <motion.div key="p4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              className="bg-white rounded-2xl border border-line shadow-sm p-6 sm:p-8 max-w-2xl mx-auto">
-              <div className="flex items-center justify-between mb-2 text-xs font-semibold text-ink-3">
-                <span>Question {qIndex + 1} of {totalQ}</span>
-                <span>{Math.round((qIndex / totalQ) * 100)}%</span>
-              </div>
-              <div className="h-2 bg-line-2 rounded-full overflow-hidden mb-6">
-                <motion.div className="h-full bg-red" animate={{ width: `${(qIndex / totalQ) * 100}%` }} />
-              </div>
-              {(() => {
-                const q = QUESTIONS[qIndex];
-                const selected = answers[q.id];
-                return (
+          {/* PHASE 4: SECTION INTRO */}
+          {phase === 4 && introSection && (() => {
+            const sec = SECTIONS.find((s) => s.id === introSection)!;
+            const count = questionsForSection(sec.id).length;
+            return (
+              <motion.div key={`intro-${sec.id}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                className="bg-white rounded-2xl border border-line shadow-sm p-6 sm:p-10 max-w-2xl mx-auto text-center">
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  {SECTIONS.map((s) => (
+                    <span key={s.id} className={`h-1.5 rounded-full transition-all ${s.id === sec.id ? 'w-8 bg-red' : ackIntros[s.id] ? 'w-4 bg-red/40' : 'w-4 bg-line-2'}`} />
+                  ))}
+                </div>
+                <p className="text-xs font-bold uppercase tracking-widest text-red mb-2">Section {sec.index} of 6</p>
+                <h2 className="text-3xl font-extrabold text-ink mb-3">{sec.title}</h2>
+                <p className="text-sm text-ink-2 max-w-md mx-auto mb-6">{sec.blurb}</p>
+                <div className="bg-bg rounded-xl border border-line p-5 text-left max-w-md mx-auto mb-6">
+                  <p className="text-sm font-bold text-ink mb-2">How to answer</p>
+                  <p className="text-sm text-ink-2 mb-3">{sec.scale}</p>
+                  <ul className="space-y-1.5">
+                    {sec.instructions.map((t, i) => (
+                      <li key={i} className="text-xs text-ink-3 flex gap-2"><span className="text-red">•</span>{t}</li>
+                    ))}
+                  </ul>
+                  <div className="flex items-center gap-4 mt-4 pt-4 border-t border-line text-xs text-ink-3">
+                    <span className="inline-flex items-center gap-1"><ListChecks className="w-3.5 h-3.5" /> {count} questions</span>
+                    <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> ~45s each</span>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <button
+                    onClick={() => {
+                      const prevIdx = (firstIndexOf[sec.id] ?? 0) - 1;
+                      if (prevIdx < 0) {
+                        setIntroSection(null);
+                        setPhase(3);
+                        return;
+                      }
+                      setIntroSection(null);
+                      goTo(prevIdx);
+                    }}
+                    className="inline-flex items-center gap-2 text-sm font-semibold text-ink-3 hover:text-ink px-5 py-3 rounded-xl border border-line bg-white"
+                  >
+                    <ChevronLeft className="w-4 h-4" /> Back
+                  </button>
+                  <button onClick={beginSection} className="inline-flex items-center gap-2 bg-red text-white font-semibold px-8 py-3 rounded-xl shadow-glow">
+                    Begin Section {sec.index} <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })()}
+
+          {/* PHASE 4: QUESTION */}
+          {phase === 4 && !introSection && (() => {
+            const q = QUESTIONS[qIndex];
+            const sec = SECTIONS.find((s) => s.id === q.section)!;
+            const sectionQs = questionsForSection(q.section);
+            const withinIdx = sectionQs.findIndex((x) => x.id === q.id);
+            const selected = answers[q.id];
+            const lowTime = secondsLeft <= 10;
+            return (
+              <motion.div
+                key="p4"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="w-full h-[calc(100dvh-4rem)] overflow-hidden"
+              >
+                {/* timer + section bar */}
+                <div className="bg-ink text-white px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-lg font-bold text-ink mb-5">{q.text}</p>
+                    <p className="text-[11px] uppercase tracking-widest text-white/50">Section {sec.index} · {sec.title}</p>
+                    <p className="text-sm font-bold">Question {qIndex + 1} of {total} <span className="text-white/50 font-normal">· {withinIdx + 1}/{sectionQs.length} in section</span></p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-sm ${lowTime ? 'bg-red text-white animate-pulse' : 'bg-white/10 text-white'}`}>
+                      <Clock className="w-4 h-4" /> {fmt(secondsLeft)}
+                      <span className="text-[10px] font-normal text-white/60 hidden sm:inline">this question</span>
+                    </div>
+                    <div className="hidden sm:flex items-center gap-1.5 text-xs text-white/70">
+                      <span>Total left</span><span className="font-bold text-white">{fmt(totalLeft)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* progress bar */}
+                <div className="h-1.5 bg-line-2">
+                  <motion.div className="h-full bg-red" animate={{ width: `${((qIndex + 1) / total) * 100}%` }} />
+                </div>
+
+                <div className="grid lg:grid-cols-[1fr_280px] gap-0 bg-white border border-t-0 border-line shadow-sm overflow-hidden h-[calc(100%-3.5rem)]">
+                  {/* question */}
+                  <div className="p-4 sm:p-6 lg:p-8 overflow-y-auto min-h-0">
+                    <p className="text-xs font-semibold text-ink-4 mb-2">{sec.scale}</p>
+                    <p className="text-lg font-bold text-ink mb-5">{q.prompt}</p>
                     <div className="space-y-2.5">
                       {q.options.map((opt, i) => {
                         const isSel = selected === i;
                         return (
-                          <button key={opt} onClick={() => setAnswer(q.id, i)}
+                          <button key={`${q.id}-${i}`} onClick={() => setAnswer(q.id, i)}
                             className={`w-full text-left px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all flex items-center gap-3 ${isSel ? 'border-red bg-red-soft text-red' : 'border-line hover:border-red-line text-ink-2'}`}>
                             <span className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center ${isSel ? 'border-red' : 'border-ink-4'}`}>{isSel && <span className="w-2.5 h-2.5 rounded-full bg-red" />}</span>
-                            {opt}
+                            {opt.label}
                           </button>
                         );
                       })}
                     </div>
-                    <div className="flex items-center justify-between mt-8">
-                      <button onClick={() => (qIndex === 0 ? setPhase(3) : setQIndex((i) => i - 1))} className="inline-flex items-center gap-1 text-sm font-semibold text-ink-3 hover:text-ink"><ChevronLeft className="w-4 h-4" /> Back</button>
-                      {qIndex < totalQ - 1 ? (
-                        <button disabled={selected === undefined} onClick={() => setQIndex((i) => i + 1)}
-                          className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-3 rounded-xl shadow-glow disabled:opacity-50 disabled:shadow-none">Next <ChevronRight className="w-4 h-4" /></button>
+
+                    <div className="flex items-center justify-between mt-8 gap-3 flex-wrap">
+                      <button onClick={() => goTo(qIndex - 1)} disabled={qIndex === 0}
+                        className="inline-flex items-center gap-1 text-sm font-semibold text-ink-3 hover:text-ink disabled:opacity-40">
+                        <ChevronLeft className="w-4 h-4" /> Previous
+                      </button>
+                      <button onClick={() => setMarked((m) => ({ ...m, [q.id]: !m[q.id] }))}
+                        className={`inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl border transition-colors ${marked[q.id] ? 'border-warning bg-yellow-50 text-warning' : 'border-line text-ink-3 hover:border-warning'}`}>
+                        <Flag className="w-4 h-4" /> {marked[q.id] ? 'Marked' : 'Mark for review'}
+                      </button>
+                      {qIndex < total - 1 ? (
+                        <button onClick={() => goTo(qIndex + 1)}
+                          className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-3 rounded-xl shadow-glow">Save &amp; Next <ChevronRight className="w-4 h-4" /></button>
                       ) : (
-                        <button disabled={selected === undefined} onClick={handleSubmit}
-                          className="inline-flex items-center gap-2 bg-success text-white font-semibold px-6 py-3 rounded-xl shadow-sm disabled:opacity-50"><Check className="w-4 h-4" /> See my results</button>
+                        <button onClick={handleSubmit}
+                          className="inline-flex items-center gap-2 bg-success text-white font-semibold px-6 py-3 rounded-xl shadow-sm"><Check className="w-4 h-4" /> Submit test</button>
                       )}
                     </div>
                   </div>
-                );
-              })()}
-            </motion.div>
-          )}
+
+                  {/* palette (desktop) */}
+                  <aside className="hidden lg:block border-l border-line bg-bg p-4 min-h-0 overflow-hidden">
+                    <PaletteLegend answered={answeredCount} marked={markedCount} total={total} />
+                    <Palette
+                      qIndex={qIndex} answers={answers} marked={marked} visited={visited}
+                      onJump={(i) => goTo(i)}
+                    />
+                  </aside>
+                </div>
+
+                {/* palette (mobile toggle) */}
+                <div className="lg:hidden mt-3">
+                  <button onClick={() => setShowPalette((v) => !v)}
+                    className="w-full inline-flex items-center justify-center gap-2 bg-white border border-line rounded-xl py-3 text-sm font-semibold text-ink-2">
+                    <ListChecks className="w-4 h-4" /> {showPalette ? 'Hide' : 'Show'} question palette
+                    <span className="text-ink-4">({answeredCount}/{total} answered)</span>
+                  </button>
+                  {showPalette && (
+                    <div className="mt-3 bg-white border border-line rounded-xl p-4">
+                      <PaletteLegend answered={answeredCount} marked={markedCount} total={total} />
+                      <Palette qIndex={qIndex} answers={answers} marked={marked} visited={visited} onJump={(i) => { goTo(i); setShowPalette(false); }} />
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })()}
         </AnimatePresence>
       </div>
+    </div>
+  );
+}
+
+/* ---------------- palette components ---------------- */
+
+function PaletteLegend({ answered, marked, total }: { answered: number; marked: number; total: number }) {
+  return (
+    <div className="mb-4">
+      <p className="text-xs font-bold text-ink-2 mb-2">Question palette</p>
+      <div className="space-y-1.5 text-[11px] text-ink-3">
+        <Legend color="bg-success" icon={<CheckCircle2 className="w-3 h-3 text-success" />} label={`Answered (${answered})`} />
+        <Legend color="bg-warning" icon={<Flag className="w-3 h-3 text-warning" />} label={`Marked for review (${marked})`} />
+        <Legend color="bg-white border border-ink-4" icon={<Circle className="w-3 h-3 text-ink-4" />} label={`Not answered (${total - answered})`} />
+      </div>
+    </div>
+  );
+}
+
+function Legend({ color, icon, label }: { color: string; icon: React.ReactNode; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`w-3.5 h-3.5 rounded ${color}`} />
+      {icon}
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function Palette({
+  qIndex, answers, marked, visited, onJump,
+}: {
+  qIndex: number; answers: AnswerMap; marked: Record<string, boolean>; visited: Record<string, boolean>;
+  onJump: (i: number) => void;
+}) {
+  let offset = 0;
+  return (
+    <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+      {SECTIONS.map((sec) => {
+        const qs = questionsForSection(sec.id);
+        const start = offset;
+        offset += qs.length;
+        return (
+          <div key={sec.id}>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-ink-4 mb-1.5">{sec.index}. {sec.short}</p>
+            <div className="grid grid-cols-5 gap-1.5">
+              {qs.map((q, j) => {
+                const globalIdx = start + j;
+                const isCurrent = globalIdx === qIndex;
+                const isAnswered = answers[q.id] !== undefined;
+                const isMarked = marked[q.id];
+                const wasVisited = visited[q.id];
+                let cls = 'bg-white border border-ink-4/40 text-ink-3';
+                if (isAnswered && isMarked) cls = 'bg-warning/20 border border-warning text-warning';
+                else if (isAnswered) cls = 'bg-success text-white border border-success';
+                else if (isMarked) cls = 'bg-warning text-white border border-warning';
+                else if (wasVisited) cls = 'bg-red-soft border border-red-line text-red';
+                return (
+                  <button key={q.id} onClick={() => onJump(globalIdx)}
+                    className={`relative h-8 rounded-md text-xs font-bold transition-all ${cls} ${isCurrent ? 'ring-2 ring-ink ring-offset-1' : ''}`}>
+                    {globalIdx + 1}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      <p className="text-[10px] text-ink-4 flex items-center gap-1 pt-1"><AlertCircle className="w-3 h-3" /> Tap a number to jump to that question.</p>
     </div>
   );
 }

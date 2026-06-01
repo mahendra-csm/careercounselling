@@ -27,7 +27,7 @@ export default function Page() {
 
   return (
     <ModuleShell title="Career Analysis" icon={Search}
-      description="A 20-question psychometric assessment that reveals the right career path for your next 20 years."
+      description="A 6-section, 70+ question career assessment that reveals the right career path for your next 20 years."
       action={
         <Link href="/assessment" className="inline-flex items-center gap-2 bg-white text-red font-bold px-5 py-3 rounded-xl shadow-sm shrink-0">
           {report ? 'Retake' : 'Start'} Assessment <ArrowRight className="w-4 h-4" />

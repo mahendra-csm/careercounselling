@@ -49,7 +49,7 @@ export default function Hero() {
             transition={{ duration: 0.7, delay: 0.05 }}
             className="text-4xl sm:text-5xl lg:text-7xl font-extrabold leading-tight mb-6"
           >
-            Discover what your child can become — in just 15 questions.
+            Discover what your child can become.
           </motion.h1>
 
           <motion.p

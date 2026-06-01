@@ -23,7 +23,7 @@ export default function LandingPage() {
             Ready to see your strengths and next steps?
           </h2>
           <p className="text-red-soft text-lg mb-8">
-            Take the quick 15-question quiz and get your student report instantly.
+            Take the 6-section career assessment and get your student report instantly.
           </p>
           <a
             href="/assessment"
