@@ -1,42 +1,52 @@
 'use client';
 
 /**
- * 30-page career report. Each <Page> is a fixed A4 sheet, so printing / saving
- * to PDF yields EXACTLY 30 pages. Every value comes from the student's answers
- * via the profile produced by lib/assessment-engine.ts.
+ * Mindler-style career report — condensed, highly visual and kid-friendly
+ * (readable from class 1 to class 12). Each <Page> is a fixed A4 sheet so
+ * printing / saving to PDF yields exactly TOTAL_PAGES pages. Every number is
+ * derived from the student's own answers via lib/assessment-engine.ts.
  */
 
 import Link from 'next/link';
-import { Printer, Phone, Mail, LayoutDashboard } from 'lucide-react';
+import { Printer, Phone, Mail, LayoutDashboard, Sparkles, CheckCircle2, Target, TrendingUp } from 'lucide-react';
 import Logo from '@/components/brand/Logo';
-import type { PsychometricProfile, Bar } from '@/lib/psychometric';
+import type { PsychometricProfile } from '@/lib/psychometric';
 import { MBTI_DESC } from '@/lib/psychometric';
 import { CAREER_LIBRARY } from '@/constants/catalog';
 import { getCareerDetail, buildSalary } from '@/constants/career-details';
 
+const TOTAL_PAGES = 14;
+
+/* ----------------------------- palette ----------------------------- */
+/* Pleasant, friendly per-dimension colours. */
+const C = {
+  personality: '#8B5CF6', // violet
+  interest: '#F59E0B',    // amber
+  intelligence: '#EC4899',// pink
+  skill: '#10B981',       // emerald
+  motivator: '#3B82F6',   // blue
+  learning: '#06B6D4',    // cyan
+  eq: '#22C55E',          // green
+  cluster: '#6366F1',     // indigo
+  ink: '#1F2430',
+};
 const RED = '#E0242E';
-const TOTAL_PAGES = 30;
+const PALETTE = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#6366F1', '#22C55E'];
+const ZONE = { low: '#FDECEA', med: '#FEF6E0', high: '#E9F7EF' };
 
-/* Multi-colour palette for bar charts (cycles like the reference report). */
-const PALETTE = ['#2FA37C', '#3F6CA6', '#E8821E', '#7E57A4', '#1C8EA8', '#6F8C4A', '#C0473B', '#4FA3A0'];
-function barColor(i: number) { return PALETTE[i % PALETTE.length]; }
+/* emoji icons (kid-friendly, print well) */
+const MBTI_EMOJI: Record<string, string> = { I: '🤔', E: '🗣️', S: '🔍', N: '💭', T: '🧠', F: '💖', J: '🗂️', P: '🎲' };
+const RIASEC_EMOJI: Record<string, string> = { R: '🔧', I: '🔬', A: '🎨', S: '🤝', E: '📈', C: '🗂️' };
+const INT_EMOJI: Record<string, string> = {
+  linguistic: '📖', logical: '🔢', spatial: '🧭', kinesthetic: '🤸',
+  musical: '🎵', interpersonal: '👥', intrapersonal: '🪞', naturalist: '🌿',
+};
 
-/* Donut / gauge colour by score band: green→blue→orange→red. */
-function levelColor(percent: number) {
-  if (percent >= 80) return '#1F9D57';
-  if (percent >= 60) return '#1D4ED8';
-  if (percent >= 40) return '#E8821E';
-  return RED;
-}
+/* ----------------------------- helpers ----------------------------- */
+function level(p: number) { return p >= 67 ? 'High' : p >= 34 ? 'Medium' : 'Low'; }
+function score19(p: number) { return Math.max(1, Math.min(9, Math.round((p / 100) * 8) + 1)); }
 
-/* Personality dimension accent colours. */
-const AXIS_COLORS: Record<string, string> = { EI: '#2E9BC4', SN: '#F2B705', TF: '#3CA56B', JP: '#8A5FB0' };
-
-/* ----------------------------- small helpers ----------------------------- */
-
-function normalizeTitle(t: string) {
-  return t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
+function normalizeTitle(t: string) { return t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
 function resolveCareerTitle(preferred: string | undefined, fallback: string) {
   const options = CAREER_LIBRARY.map((c) => c.title);
   const target = preferred?.trim();
@@ -44,218 +54,201 @@ function resolveCareerTitle(preferred: string | undefined, fallback: string) {
     const exact = options.find((title) => normalizeTitle(title) === normalizeTitle(target));
     if (exact) return exact;
     const partial = options.find((title) => {
-      const a = normalizeTitle(title);
-      const b = normalizeTitle(target);
+      const a = normalizeTitle(title); const b = normalizeTitle(target);
       return a.includes(b) || b.includes(a);
     });
     if (partial) return partial;
   }
   return fallback;
 }
-function toLakhs(amount: number) {
-  return `Rs ${ (amount / 100000).toFixed(amount >= 1000000 ? 0 : 1) }L`;
-}
+function toLakhs(amount: number) { return `Rs ${(amount / 100000).toFixed(amount >= 1000000 ? 0 : 1)}L`; }
 
 const VERDICT_STYLE: Record<string, string> = {
-  'Top Choice': 'text-red bg-red-soft',
-  'Good Choice': 'text-success bg-green-50',
-  Optional: 'text-ink-3 bg-line-2',
-  Develop: 'text-warning bg-yellow-50',
-  Avoid: 'text-ink-4 bg-line-2',
+  'Top Choice': 'text-white', 'Good Choice': 'text-white',
+  Optional: 'text-white', Develop: 'text-white', Avoid: 'text-white',
 };
-const LEVEL_STYLE: Record<string, string> = {
-  High: 'text-success bg-green-50',
-  Medium: 'text-warning bg-yellow-50',
-  Low: 'text-ink-4 bg-line-2',
+const VERDICT_BG: Record<string, string> = {
+  'Top Choice': '#10B981', 'Good Choice': '#3B82F6', Optional: '#94A3B8', Develop: '#F59E0B', Avoid: '#EF4444',
 };
 
-const STAGE_BY_LABEL: Record<string, { stage: string; note: string }> = {
-  'Future-Ready': { stage: 'Future-Ready', note: 'You have strong clarity and are ready to execute your plan.' },
-  Clarity: { stage: 'Clarity', note: 'You have good direction; refine and commit to a path.' },
-  Exploring: { stage: 'Exploring', note: 'You are exploring options - gather information and narrow down.' },
-  'Getting Started': { stage: 'Confused', note: 'You are early in planning - explore strengths and options.' },
+const STAGE_BY_LABEL: Record<string, { stage: string; emoji: string; note: string }> = {
+  'Future-Ready': { stage: 'Future-Ready', emoji: '🚀', note: 'You have strong clarity and are ready to act on your plan.' },
+  Clarity: { stage: 'Clarity', emoji: '🌟', note: 'You have good direction — now refine and commit to a path.' },
+  Exploring: { stage: 'Exploring', emoji: '🧭', note: 'You are exploring options — gather information and narrow down.' },
+  'Getting Started': { stage: 'Just Starting', emoji: '🌱', note: 'You are early in planning — explore your strengths and options.' },
 };
 
 const CLUSTER_DESC: Record<string, string[]> = {
-  'Information Technology': ['Build, test and maintain software, data and AI systems.', 'High demand across every industry with strong pay growth.'],
-  'Health Science': ['Diagnose, treat and care for patients, or support medical research.', 'Stable, respected and impactful work.'],
-  'Science & Research': ['Investigate, experiment and discover across scientific fields.', 'Ideal for the curious and analytical.'],
-  'Engineering & Technology': ['Design and build machines, structures and systems.', 'Hands-on problem solving with real-world impact.'],
-  'Accounts & Finance': ['Manage money, audit, taxation and investments.', 'Numbers, accuracy and structured work.'],
-  'Government & Legal': ['Public administration, policy, law and justice.', 'Service, stability and authority.'],
-  'Business Management': ['Lead teams, run operations and grow organisations.', 'Leadership, strategy and people skills.'],
-  'Arts & Media': ['Create design, content, film and visual experiences.', 'Imagination meets craft.'],
-  'Education & Training': ['Teach, mentor and develop people.', 'Communication and subject mastery.'],
+  'Information Technology': ['Build apps, websites, data and AI systems.', 'Wanted in every industry, with strong pay growth.'],
+  'Health Science': ['Care for patients or support medical research.', 'Stable, respected and meaningful work.'],
+  'Science & Research': ['Investigate, experiment and discover new things.', 'Great for curious, analytical minds.'],
+  'Engineering & Technology': ['Design and build machines, structures and systems.', 'Hands-on problem solving with real impact.'],
+  'Accounts & Finance': ['Work with money, audits, taxes and investments.', 'Numbers, accuracy and structure.'],
+  'Government & Legal': ['Public service, policy, law and justice.', 'Service, stability and authority.'],
+  'Business Management': ['Lead teams and grow organisations.', 'Leadership, strategy and people skills.'],
+  'Arts & Media': ['Create design, content, film and visuals.', 'Where imagination meets craft.'],
+  'Education & Training': ['Teach, mentor and help people grow.', 'Communication and subject mastery.'],
   'Human Service': ['Support wellbeing, counselling and community.', 'Empathy and people skills.'],
   'Marketing & Advertising': ['Brand, growth, sales and communication.', 'Creativity with analytics.'],
   'Media & Communication': ['Journalism, storytelling and digital media.', 'Words, research and reach.'],
 };
 function clusterDesc(label: string) {
-  return CLUSTER_DESC[label] ?? ['A field aligned with your strongest interests and skills.', 'Explore the day-to-day roles before deciding.'];
+  return CLUSTER_DESC[label] ?? ['A field that matches your strongest interests and skills.', 'Explore the day-to-day roles before deciding.'];
 }
 
 /* subject streams derived from interests + skills */
 function streamMatch(p: PsychometricProfile) {
   const r = Object.fromEntries(p.interests.map((b) => [b.label, b.percent])) as Record<string, number>;
   const sk = Object.fromEntries(p.skills.map((b) => [b.label, b.percent])) as Record<string, number>;
-  const inv = r['Investigative'] ?? 0;
-  const art = r['Artistic'] ?? 0;
-  const soc = r['Social'] ?? 0;
-  const ent = r['Enterprising'] ?? 0;
-  const con = r['Conventional'] ?? 0;
-  const num = sk['Numerical Ability'] ?? 0;
-  const log = sk['Logical Ability'] ?? 0;
-  const verb = sk['Verbal Ability'] ?? 0;
+  const inv = r['Investigative'] ?? 0; const art = r['Artistic'] ?? 0; const soc = r['Social'] ?? 0;
+  const ent = r['Enterprising'] ?? 0; const con = r['Conventional'] ?? 0;
+  const num = sk['Numerical Ability'] ?? 0; const log = sk['Logical Ability'] ?? 0; const verb = sk['Verbal Ability'] ?? 0;
   const clp = (n: number) => Math.max(20, Math.min(98, Math.round(n)));
   return [
-    {
-      name: 'Science - Maths',
-      icon: '📐',
-      percent: clp(inv * 0.5 + num * 0.3 + log * 0.2),
-      mandatory: ['Maths', 'Physics', 'Chemistry'],
-      optional: ['Computer Science', 'Biology', 'Engineering Drawing', 'Economics'],
-    },
-    {
-      name: 'Science - Bio',
-      icon: '🧬',
-      percent: clp(inv * 0.45 + soc * 0.25 + (sk['Social & Co-operation Skills'] ?? 0) * 0.3),
-      mandatory: ['Biology', 'Physics', 'Chemistry'],
-      optional: ['Computer Science', 'Maths', 'Psychology', 'Agriculture'],
-    },
-    {
-      name: 'Commerce',
-      icon: '💼',
-      percent: clp(con * 0.5 + ent * 0.3 + num * 0.2),
-      mandatory: ['Accountancy', 'Economics', 'Business Studies'],
-      optional: ['Business Maths', 'Computer Science', 'Legal Studies', 'Entrepreneurship'],
-    },
-    {
-      name: 'Humanities',
-      icon: '📚',
-      percent: clp(art * 0.4 + soc * 0.4 + verb * 0.2),
-      mandatory: ['Language Arts', 'History', 'Political Science'],
-      optional: ['Psychology', 'Economics', 'Legal Studies', 'Fine Arts'],
-    },
+    { name: 'Science - Maths', icon: '📐', percent: clp(inv * 0.5 + num * 0.3 + log * 0.2),
+      mandatory: ['Maths', 'Physics', 'Chemistry'], optional: ['Computer Science', 'Biology', 'Economics'] },
+    { name: 'Science - Bio', icon: '🧬', percent: clp(inv * 0.45 + soc * 0.25 + (sk['Social & Co-operation Skills'] ?? 0) * 0.3),
+      mandatory: ['Biology', 'Physics', 'Chemistry'], optional: ['Computer Science', 'Maths', 'Psychology'] },
+    { name: 'Commerce', icon: '💼', percent: clp(con * 0.5 + ent * 0.3 + num * 0.2),
+      mandatory: ['Accountancy', 'Economics', 'Business Studies'], optional: ['Business Maths', 'Legal Studies'] },
+    { name: 'Humanities', icon: '📚', percent: clp(art * 0.4 + soc * 0.4 + verb * 0.2),
+      mandatory: ['Language Arts', 'History', 'Political Science'], optional: ['Psychology', 'Fine Arts'] },
   ].sort((a, b) => b.percent - a.percent);
 }
 
 /* ----------------------------- UI atoms ----------------------------- */
 
-/* Axis-scaled horizontal bar chart with light gridlines + multi-colour bars,
- * matching the reference report's interest/motivator/cluster charts. */
-function ChartCard({
-  data, colorMode = 'palette', labelWidth = 130,
-}: {
-  data: { key: string; label: string; percent: number }[];
-  colorMode?: 'palette' | 'level';
-  labelWidth?: number;
-}) {
-  const ticks = [0, 20, 40, 60, 80, 100];
-  const gridStyle = {
-    backgroundImage: 'repeating-linear-gradient(to right, #ECECEF 0, #ECECEF 1px, transparent 1px, transparent 20%)',
-  } as React.CSSProperties;
+/** Mindler-signature Low/Medium/High zoned bar. */
+function ZoneBar({ label, percent, color, labelWidth = 150 }: { label: string; percent: number; color: string; labelWidth?: number }) {
   return (
-    <div className="rounded-xl border border-line p-4 bg-white">
+    <div className="flex items-center gap-3">
+      <span className="shrink-0 text-[11px] text-ink-2 text-right leading-tight" style={{ width: labelWidth }}>{label}</span>
+      <div className="flex-1 relative h-5 rounded-md overflow-hidden border border-line">
+        <div className="absolute inset-0 flex">
+          <div className="flex-1" style={{ background: ZONE.low }} />
+          <div className="flex-1" style={{ background: ZONE.med }} />
+          <div className="flex-1" style={{ background: ZONE.high }} />
+        </div>
+        <div className="absolute inset-y-0 left-0 rounded-r-md flex items-center justify-end pr-1.5"
+          style={{ width: `${Math.max(3, percent)}%`, background: color }}>
+          {percent >= 16 && <span className="text-[9px] font-bold text-white">{percent}%</span>}
+        </div>
+        {percent < 16 && (
+          <span className="absolute top-1/2 -translate-y-1/2 text-[9px] font-bold"
+            style={{ left: `calc(${Math.max(3, percent)}% + 4px)`, color }}>{percent}%</span>
+        )}
+      </div>
+    </div>
+  );
+}
+function ZoneAxis({ labelWidth = 150 }: { labelWidth?: number }) {
+  return (
+    <div className="flex mt-1" style={{ paddingLeft: labelWidth + 12 }}>
+      <div className="flex-1 flex justify-between text-[8.5px] font-semibold text-ink-4">
+        <span>Low</span><span>Medium</span><span>High</span>
+      </div>
+    </div>
+  );
+}
+function ZoneChart({ data, color, labelWidth = 150 }: { data: { key: string; label: string; percent: number }[]; color: string | ((i: number) => string); labelWidth?: number }) {
+  return (
+    <div className="rounded-2xl border border-line p-4 bg-white">
       <div className="space-y-2">
-        {data.map((b, i) => {
-          const color = colorMode === 'level' ? levelColor(b.percent) : barColor(i);
-          return (
-            <div key={b.key} className="flex items-center gap-3">
-              <span className="shrink-0 text-[11px] text-ink-2 text-right leading-tight" style={{ width: labelWidth }}>{b.label}</span>
-              <div className="flex-1 relative h-4 rounded-sm" style={gridStyle}>
-                <div className="absolute inset-y-0 left-0 rounded-r-[3px] flex items-center justify-end pr-1.5"
-                  style={{ width: `${Math.max(2, b.percent)}%`, background: color }}>
-                  {b.percent >= 18 && <span className="text-[9px] font-bold text-white">{b.percent}%</span>}
-                </div>
-                {b.percent < 18 && (
-                  <span className="absolute top-1/2 -translate-y-1/2 text-[9px] font-bold"
-                    style={{ left: `calc(${Math.max(2, b.percent)}% + 4px)`, color }}>{b.percent}%</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {data.map((b, i) => (
+          <ZoneBar key={b.key} label={b.label} percent={b.percent} labelWidth={labelWidth}
+            color={typeof color === 'function' ? color(i) : color} />
+        ))}
       </div>
-      {/* axis */}
-      <div className="flex mt-1" style={{ paddingLeft: labelWidth + 12 }}>
-        <div className="flex-1 flex justify-between text-[8.5px] text-ink-4">
-          {ticks.map((t) => <span key={t}>{t}</span>)}
+      <ZoneAxis labelWidth={labelWidth} />
+    </div>
+  );
+}
+
+/** Colourful dominant-trait tile with an emoji icon. */
+function TraitTile({ emoji, title, sub, color }: { emoji: string; title: string; sub?: string; color: string }) {
+  return (
+    <div className="rounded-2xl p-3 text-center" style={{ background: `${color}14`, border: `1.5px solid ${color}55` }}>
+      <div className="w-12 h-12 rounded-2xl mx-auto flex items-center justify-center text-2xl mb-1.5" style={{ background: `${color}26` }}>{emoji}</div>
+      <p className="text-[12px] font-extrabold text-ink leading-tight">{title}</p>
+      {sub && <p className="text-[10.5px] font-bold mt-0.5" style={{ color }}>{sub}</p>}
+    </div>
+  );
+}
+
+/** 1..9 score chips (Mindler personality style). */
+function ScaleChips({ score, color }: { score: number; color: string }) {
+  return (
+    <div className="flex gap-1">
+      {Array.from({ length: 9 }, (_, i) => i + 1).map((n) => (
+        <span key={n} className="w-5 h-5 rounded-md text-[10px] font-bold flex items-center justify-center"
+          style={n === score ? { background: color, color: '#fff' } : { background: '#F1F1F4', color: '#9A9AA5' }}>{n}</span>
+      ))}
+    </div>
+  );
+}
+
+/** Meaning / Analysis / Development boxes. */
+function DimBox({ color, meaning, analysis, development }: { color: string; meaning: string; analysis: string; development: string[] }) {
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-line overflow-hidden">
+          <div className="px-3 py-1 text-[10px] font-bold text-white" style={{ background: color }}>What it means</div>
+          <p className="px-3 py-2 text-[11px] text-ink-2 leading-snug">{meaning}</p>
+        </div>
+        <div className="rounded-xl border border-line overflow-hidden">
+          <div className="px-3 py-1 text-[10px] font-bold text-white" style={{ background: color }}>Your result</div>
+          <p className="px-3 py-2 text-[11px] text-ink-2 leading-snug">{analysis}</p>
         </div>
       </div>
-    </div>
-  );
-}
-
-/* Thin gauge used inside the career-path table. */
-function Gauge({ percent, color }: { percent: number; color: string }) {
-  return (
-    <div className="h-2 rounded-full bg-line-2 overflow-hidden">
-      <div className="h-full rounded-full" style={{ width: `${Math.max(4, percent)}%`, background: color }} />
-    </div>
-  );
-}
-
-/* Personality slider: two-tone track + knob at the preference boundary. */
-function MbtiSlider({ axis, left, right, leftPct, rightPct, dominant }: {
-  axis: string; left: string; right: string; leftPct: number; rightPct: number; dominant: string;
-}) {
-  const color = AXIS_COLORS[axis] ?? RED;
-  const dominantOnLeft = dominant === left;
-  const dominantPct = Math.max(leftPct, rightPct);
-  return (
-    <div>
-      <p className="text-center text-[12px] font-bold mb-1" style={{ color }}>{dominantPct}% {dominant}</p>
-      <div className="flex items-center gap-3">
-        <span className={`w-24 text-right text-[12px] ${dominantOnLeft ? 'font-bold text-ink' : 'text-ink-3'}`}>{left}</span>
-        <div className="flex-1 relative h-3 rounded-full overflow-hidden flex" style={{ background: `${color}26` }}>
-          <div className="h-full" style={{ width: `${leftPct}%`, background: dominantOnLeft ? color : `${color}55` }} />
-          <div className="h-full" style={{ width: `${rightPct}%`, background: dominantOnLeft ? `${color}55` : color }} />
-        </div>
-        <span className={`w-24 text-[12px] ${!dominantOnLeft ? 'font-bold text-ink' : 'text-ink-3'}`}>{right}</span>
+      <div className="rounded-xl border border-line overflow-hidden">
+        <div className="px-3 py-1 text-[10px] font-bold text-white" style={{ background: C.ink }}>How to grow 🌱</div>
+        <ul className="px-3 py-2 grid sm:grid-cols-2 gap-x-4 gap-y-1">
+          {development.map((d, i) => <li key={i} className="text-[11px] text-ink-2 flex gap-1.5"><span style={{ color }}>•</span>{d}</li>)}
+        </ul>
       </div>
     </div>
   );
 }
 
-function Donut({ percent, label }: { percent: number; label: string }) {
-  const color = levelColor(percent);
+function Donut({ percent, label, color }: { percent: number; label: string; color: string }) {
   return (
     <div className="flex flex-col items-center">
       <div className="relative w-20 h-20">
-        <div className="w-20 h-20 rounded-full" style={{ background: `conic-gradient(${color} ${percent * 3.6}deg, #E9E9EC 0deg)` }} />
-        <div className="absolute inset-[9px] bg-white rounded-full flex items-center justify-center text-sm font-extrabold" style={{ color }}>{percent}%</div>
+        <div className="w-20 h-20 rounded-full" style={{ background: `conic-gradient(${color} ${percent * 3.6}deg, #ECECEF 0deg)` }} />
+        <div className="absolute inset-[9px] bg-white rounded-full flex items-center justify-center text-base font-extrabold" style={{ color }}>{percent}%</div>
       </div>
       <p className="text-[11px] font-bold text-ink-2 mt-1 text-center leading-tight">{label}</p>
     </div>
   );
 }
 
-function H({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-[17px] font-extrabold text-red border-b border-red-line pb-2 mb-4">{children}</h2>;
+function H({ children, color = RED }: { children: React.ReactNode; color?: string }) {
+  return (
+    <div className="flex items-center gap-2 mb-4">
+      <span className="w-2 h-6 rounded-full" style={{ background: color }} />
+      <h2 className="text-[18px] font-extrabold text-ink">{children}</h2>
+    </div>
+  );
 }
-function Bullets({ items, mark = '•' }: { items: string[]; mark?: string }) {
+function Bullets({ items, color = RED }: { items: string[]; color?: string }) {
   return (
     <ul className="space-y-1.5">
-      {items.map((t, i) => <li key={i} className="text-[12.5px] text-ink-2 flex gap-2"><span className="text-red">{mark}</span>{t}</li>)}
+      {items.map((t, i) => <li key={i} className="text-[12px] text-ink-2 flex gap-2"><span style={{ color }}>•</span>{t}</li>)}
     </ul>
   );
 }
 
 function Page({ n, name, children }: { n: number; name: string; children: React.ReactNode }) {
   return (
-    <section
-      className="a4-page bg-white shadow-md mx-auto relative flex flex-col"
-      style={{ width: '210mm', height: '297mm', breakBefore: n > 1 ? 'page' : 'auto', overflow: 'hidden' }}
-    >
-      {/* header */}
+    <section className="a4-page bg-white shadow-md mx-auto relative flex flex-col"
+      style={{ width: '210mm', height: '297mm', breakBefore: n > 1 ? 'page' : 'auto', overflow: 'hidden' }}>
       <div className="flex items-center justify-between px-10 pt-6 pb-2 border-b border-line">
         <span className="text-[11px] font-bold uppercase tracking-wide text-ink-2">{name}</span>
-        <span className="text-[10px] font-semibold text-red uppercase tracking-wide">Career Suitability Report</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: RED }}>Career Discovery Report</span>
         <Logo size={22} />
       </div>
-      {/* body */}
       <div className="flex-1 px-10 py-6 overflow-hidden">{children}</div>
-      {/* footer */}
       <div className="flex items-center justify-between px-10 py-3 border-t border-line text-[10px] text-ink-4">
         <span>📞 8977760443 · support@onegrasp.com</span>
         <span>Page {n} of {TOTAL_PAGES}</span>
@@ -269,66 +262,42 @@ function Page({ n, name, children }: { n: number; name: string; children: React.
 export default function PsychometricReport({ profile }: { profile: PsychometricProfile }) {
   const p = profile;
   const generated = new Date(p.generatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const firstName = (p.name || 'Student').split(' ')[0];
   const ints = p.intelligences ?? [];
   const conf = p.confidence ?? { percent: 100, answered: 0, total: 0, label: 'High reliability' };
   const stage = STAGE_BY_LABEL[p.matchLabel] ?? STAGE_BY_LABEL.Exploring;
   const streams = streamMatch(p);
+  const eqAvg = p.eq.length ? Math.round(p.eq.reduce((s, e) => s + e.percent, 0) / p.eq.length) : 0;
   const hasRecommendations = (p.topCareers?.length ?? 0) > 0 && (conf.answered ?? 0) > 0;
 
   const chosenTitle = hasRecommendations ? resolveCareerTitle(p.careerFocus, p.careerFocus) : '';
   const chosenCareer = hasRecommendations ? (CAREER_LIBRARY.find((c) => c.title === chosenTitle) ?? CAREER_LIBRARY[0]) : null;
   const detail = hasRecommendations ? getCareerDetail(chosenTitle) : null;
-  const salary = hasRecommendations ? buildSalary(detail!.salaryBase) : [];
+  const salary = hasRecommendations && detail ? buildSalary(detail.salaryBase) : [];
   const maxSalary = Math.max(...salary.map((s) => s.amount), 1);
 
-  // personality dimensions content
-  const DIMS = [
-    { axis: 'EI', title: 'Where you focus your energy & attention' },
-    { axis: 'SN', title: 'How you take in information' },
-    { axis: 'TF', title: 'How you make decisions' },
-    { axis: 'JP', title: 'How you deal with the outer world' },
-  ] as const;
-  const axisLetter = (axis: string) => {
-    const a = p.mbtiAxes.find((x) => x.axis === axis)!;
-    switch (axis) {
-      case 'EI': return a.dominant === 'Extrovert' ? 'E' : 'I';
-      case 'SN': return a.dominant === 'Sensing' ? 'S' : 'N';
-      case 'TF': return a.dominant === 'Thinking' ? 'T' : 'F';
-      default: return a.dominant === 'Judging' ? 'J' : 'P';
-    }
-  };
+  // hub framework nodes
+  const hubNodes = [
+    { emoji: '🧩', label: 'Personality', value: p.mbtiType, color: C.personality, pos: { left: '50%', top: '12%' } },
+    { emoji: '🎯', label: 'Interests', value: p.topInterests[0] ?? '—', color: C.interest, pos: { left: '85%', top: '31%' } },
+    { emoji: '💡', label: 'Intelligence', value: (p.dominantIntelligence ?? '—').split(' (')[0], color: C.intelligence, pos: { left: '85%', top: '69%' } },
+    { emoji: '🛠️', label: 'Skills', value: `${p.overallSkills}%`, color: C.skill, pos: { left: '50%', top: '88%' } },
+    { emoji: '⭐', label: 'Motivators', value: p.motivators[0]?.label ?? '—', color: C.motivator, pos: { left: '15%', top: '69%' } },
+    { emoji: '❤️', label: 'Emotional', value: `${eqAvg}%`, color: C.eq, pos: { left: '15%', top: '31%' } },
+  ];
+  const nodeXY = (pos: { left: string; top: string }) => ({ x: (parseFloat(pos.left) / 100) * 320, y: (parseFloat(pos.top) / 100) * 320 });
 
   return (
     <div className="min-h-screen bg-bg">
       <style>{`
-        @page {
-          size: A4;
-          margin: 10mm;
-        }
-        body {
-          background: #f6f3f0;
-        }
-        .a4-page {
-          margin-bottom: 12px;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-        * {
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
+        @page { size: A4; margin: 10mm; }
+        body { background: #f6f3f0; }
+        .a4-page { margin-bottom: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         @media print {
-          body {
-            background: white;
-          }
-          .report-topbar,
-          .report-toolbar {
-            display: none !important;
-          }
-          .a4-page {
-            margin: 0 auto !important;
-            box-shadow: none !important;
-          }
+          body { background: white; }
+          .report-topbar, .report-toolbar { display: none !important; }
+          .a4-page { margin: 0 auto !important; box-shadow: none !important; }
         }
       `}</style>
 
@@ -336,571 +305,377 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
         <div className="max-w-[230mm] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <Link href="/dashboard"><Logo size={30} /></Link>
           <div className="flex items-center gap-2">
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2 border border-line text-ink-2 text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-bg transition-colors"
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              <span className="hidden sm:inline">Back to Dashboard</span>
-              <span className="sm:hidden">Dashboard</span>
+            <Link href="/dashboard" className="inline-flex items-center gap-2 border border-line text-ink-2 text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-bg transition-colors">
+              <LayoutDashboard className="w-4 h-4" /><span className="hidden sm:inline">Back to Dashboard</span><span className="sm:hidden">Dashboard</span>
             </Link>
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 bg-red text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-glow"
-            >
-              <Printer className="w-4 h-4" />
-              <span className="hidden sm:inline">Save as PDF</span>
-              <span className="sm:hidden">PDF</span>
+            <button onClick={() => window.print()} className="inline-flex items-center gap-2 bg-red text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-glow">
+              <Printer className="w-4 h-4" /><span className="hidden sm:inline">Save as PDF</span><span className="sm:hidden">PDF</span>
             </button>
           </div>
         </div>
       </header>
 
       <div className="max-w-[230mm] mx-auto px-4 sm:px-6 py-6 space-y-3">
-        {/* ---------- PAGE 1 - COVER ---------- */}
+
+        {/* ---------- PAGE 1 · COVER ---------- */}
         <Page n={1} name={p.name}>
-          <div className="bg-red text-white rounded-2xl px-8 py-6 mb-6">
-            <div className="flex items-center justify-between">
-              <div className="bg-white rounded-md px-2 py-1"><Logo size={26} /></div>
-              <span className="text-white/90 text-sm">onegrasp.com</span>
-            </div>
-            <div className="mt-10 grid grid-cols-[1.1fr_0.9fr] gap-8">
-              <div>
-                <p className="text-white/70 text-[11px] uppercase tracking-[0.25em] mb-2">Report prepared for</p>
-                <h1 className="text-4xl font-extrabold leading-tight mb-3">{p.name}</h1>
-                <div className="inline-flex bg-white text-red px-4 py-2 rounded-lg text-sm font-bold mb-5">
-                  Career Suitability Report
-                </div>
-                <div className="space-y-3 text-sm">
-                  <div>
-                    <p className="text-white/70 text-[10px] uppercase tracking-wide">Personality Type</p>
-                    <p className="font-bold">{p.mbtiType} · {p.mbtiAxes.map((a) => a.dominant).join(' · ')}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/70 text-[10px] uppercase tracking-wide">Top Interests</p>
-                    <p className="font-bold">{p.topInterests.slice(0, 3).join(' · ') || 'Career exploration in progress'}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/70 text-[10px] uppercase tracking-wide">Career Focus</p>
-                    <p className="font-bold">{p.favoritePath ?? p.dreamCareer ?? p.careerFocus}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-white/15 bg-white/10 p-5">
-                <p className="text-white/90 font-bold text-sm border-b border-white/15 pb-2 mb-4">Assessment summary</p>
-                <div className="space-y-3 text-sm">
-                  <div>
-                    <p className="text-white/70 text-[10px] uppercase tracking-wide">Readiness</p>
-                    <p className="font-bold">{p.overallScore}/100 - {p.matchLabel}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/70 text-[10px] uppercase tracking-wide">Reliability</p>
-                    <p className="font-bold">{conf.percent}% - {conf.label}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/70 text-[10px] uppercase tracking-wide">Generated</p>
-                    <p className="font-bold">{generated}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/70 text-[10px] uppercase tracking-wide">Top Recommendation</p>
-                    <p className="font-bold">{hasRecommendations ? p.topCareers[0]?.title : 'Complete the assessment to unlock this'}</p>
-                  </div>
-                </div>
-              </div>
+          <div className="rounded-3xl p-8 text-white relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${C.personality}, ${C.motivator})` }}>
+            <div className="absolute -right-10 -top-10 w-48 h-48 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
+            <div className="absolute -right-4 top-24 w-24 h-24 rounded-full" style={{ background: 'rgba(255,255,255,0.10)' }} />
+            <div className="relative">
+              <span className="inline-flex items-center gap-1.5 text-[12px] font-bold bg-white/20 rounded-full px-3 py-1"><Sparkles className="w-3.5 h-3.5" /> My Career Discovery</span>
+              <h1 className="text-5xl font-extrabold mt-4 leading-tight">Hi {firstName}! 👋</h1>
+              <p className="text-white/90 mt-2 text-lg">Here is what makes you <b>uniquely awesome</b> — and the careers that fit you best.</p>
+              <p className="text-white/70 text-sm mt-6">Prepared on {generated}</p>
             </div>
           </div>
 
-          {hasRecommendations ? (
-            <div className="rounded-2xl bg-red-soft border border-red-line p-5">
-              <p className="text-[13px] font-bold text-ink mb-1">Top recommendation: {p.topCareers[0]?.title}</p>
-              <p className="text-[12px] text-ink-2">
-                {p.name}, your profile aligns most strongly with <b>{p.topCareers[0]?.title}</b> ({p.topCareers[0]?.match}% match)
-                {p.topCareers[1] ? `, with ${p.topCareers[1].title} and ${p.topCareers[2]?.title} as strong alternatives.` : '.'}
-              </p>
+          <div className="grid grid-cols-3 gap-3 mt-5">
+            <StatCard emoji={stage.emoji} label="Your stage" value={stage.stage} color={C.personality} />
+            <StatCard emoji="✅" label="Report reliability" value={`${conf.percent}%`} color={C.skill} />
+            <StatCard emoji="⭐" label="Readiness score" value={`${p.overallScore}/100`} color={C.interest} />
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-line p-5">
+            <p className="text-[13px] font-extrabold text-ink mb-2">What is inside this report?</p>
+            <div className="grid grid-cols-3 gap-2.5">
+              {[
+                ['🧩', 'Your Personality'], ['🎯', 'Your Interests'], ['💡', 'Your Intelligences'],
+                ['🛠️', 'Your Skills'], ['⭐', 'Your Motivators'], ['🧠', 'Learning & Emotions'],
+                ['🗂️', 'Career Clusters'], ['📚', 'Best Subjects'], ['🚀', 'Best-Fit Careers'],
+              ].map(([e, t]) => (
+                <div key={t} className="flex items-center gap-2 rounded-xl bg-bg border border-line px-3 py-2">
+                  <span className="text-lg">{e}</span><span className="text-[11.5px] font-bold text-ink-2">{t}</span>
+                </div>
+              ))}
             </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-line p-5 text-[12.5px] text-ink-2 leading-relaxed">
-              Complete the assessment to unlock your strongest-fit career recommendations and detailed pathway analysis.
+          </div>
+
+          {hasRecommendations && (
+            <div className="mt-4 rounded-2xl p-4 text-white flex items-center gap-3" style={{ background: C.skill }}>
+              <Target className="w-6 h-6 shrink-0" />
+              <p className="text-[13px]"><b>Your top career match:</b> {p.topCareers[0]?.title} — {p.topCareers[0]?.match}% fit!</p>
             </div>
           )}
         </Page>
 
-        {/* ---------- PAGE 2 - SUMMARY ---------- */}
+        {/* ---------- PAGE 2 · FRAMEWORK HUB ---------- */}
         <Page n={2} name={p.name}>
-          <H>Your assessment summary</H>
-          <div className="grid grid-cols-2 gap-4 mb-5">
-            <div className="rounded-xl border border-line p-4">
-              <p className="text-[11px] uppercase tracking-wide text-ink-4 mb-1">Readiness stage</p>
-              <p className="text-[18px] font-extrabold text-red">{stage.stage}</p>
-              <p className="text-[12px] text-ink-3 mt-1">{stage.note}</p>
+          <H>Your Career DNA — the 6 building blocks</H>
+          <p className="text-[12px] text-ink-3 mb-3">We measured 6 parts of who you are. Together they point to the careers that will make you happy and successful.</p>
+          <div className="relative mx-auto" style={{ width: 320, height: 320 }}>
+            <svg viewBox="0 0 320 320" className="absolute inset-0 w-full h-full">
+              {hubNodes.map((nd) => { const { x, y } = nodeXY(nd.pos); return <line key={nd.label} x1={160} y1={160} x2={x} y2={y} stroke={nd.color} strokeWidth={2} strokeOpacity={0.4} />; })}
+            </svg>
+            <div className="absolute rounded-full flex flex-col items-center justify-center text-white text-center shadow-lg"
+              style={{ left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 96, height: 96, background: `linear-gradient(135deg, ${C.personality}, ${C.motivator})` }}>
+              <span className="text-2xl">🧬</span><span className="text-[10px] font-extrabold leading-tight mt-0.5">YOUR<br />CAREER DNA</span>
             </div>
-            <div className="rounded-xl border border-line p-4">
-              <p className="text-[11px] uppercase tracking-wide text-ink-4 mb-1">Reliability</p>
-              <p className="text-[18px] font-extrabold text-ink">{conf.percent}%</p>
-              <p className="text-[12px] text-ink-3 mt-1">{conf.answered}/{conf.total} answers captured - {conf.label}</p>
-            </div>
-            <div className="rounded-xl border border-line p-4">
-              <p className="text-[11px] uppercase tracking-wide text-ink-4 mb-1">Dominant learning style</p>
-              <p className="text-[16px] font-extrabold text-ink">{p.dominantLearning}</p>
-              <p className="text-[12px] text-ink-3 mt-1">Study methods should match how you absorb and retain information best.</p>
-            </div>
-            <div className="rounded-xl border border-line p-4">
-              <p className="text-[11px] uppercase tracking-wide text-ink-4 mb-1">Top cluster</p>
-              <p className="text-[16px] font-extrabold text-ink">{p.clusters[0]?.label ?? 'Career exploration in progress'}</p>
-              <p className="text-[12px] text-ink-3 mt-1">This cluster is currently the strongest match for your profile.</p>
-            </div>
+            {hubNodes.map((nd) => (
+              <div key={nd.label} className="absolute flex flex-col items-center" style={{ left: nd.pos.left, top: nd.pos.top, transform: 'translate(-50%,-50%)' }}>
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-md" style={{ background: '#fff', border: `2px solid ${nd.color}` }}>{nd.emoji}</div>
+                <span className="mt-1 text-[10px] font-extrabold text-ink">{nd.label}</span>
+                <span className="text-[9.5px] font-bold leading-tight text-center max-w-[90px] truncate" style={{ color: nd.color }}>{nd.value}</span>
+              </div>
+            ))}
           </div>
-          <p className="text-[12.5px] text-ink-2 mb-5 leading-relaxed">
-            Use it to choose subjects, narrow down careers and build an execution plan with confidence.
-          </p>
-          <H>What we measured</H>
-          <div className="grid grid-cols-2 gap-3">
-            {(p.sectionMeta ?? []).map((s, i) => (
-              <div key={s.id} className="rounded-xl border border-line p-3 flex items-center gap-3">
-                <span className="w-8 h-8 rounded-full bg-red text-white text-sm font-bold flex items-center justify-center">{i + 1}</span>
-                <div>
-                  <p className="text-[13px] font-bold text-ink">{s.title}</p>
-                  <p className="text-[11px] text-ink-4">{s.answered}/{s.total} answered</p>
+          <div className="mt-4 rounded-2xl border p-4" style={{ borderColor: `${stage.stage ? C.personality : RED}33`, background: `${C.personality}0D` }}>
+            <p className="text-[13px] font-extrabold text-ink mb-1">{stage.emoji} You are at the “{stage.stage}” stage</p>
+            <p className="text-[12px] text-ink-2">{stage.note}</p>
+          </div>
+        </Page>
+
+        {/* ---------- PAGE 3 · PERSONALITY OVERVIEW ---------- */}
+        <Page n={3} name={p.name}>
+          <H color={C.personality}>Your Personality 🧩</H>
+          <p className="text-[12px] text-ink-3 mb-3">Your personality is your natural style — how you get energy, take in information, decide and plan.</p>
+          <div className="text-center mb-4">
+            <span className="inline-block text-4xl font-extrabold tracking-[0.3em] px-6 py-2 rounded-2xl text-white" style={{ background: C.personality }}>{p.mbtiType}</span>
+            <p className="text-[12px] text-ink-3 mt-2">{p.mbtiAxes.map((a) => a.dominant).join(' · ')}</p>
+          </div>
+          <div className="grid grid-cols-4 gap-2.5 mb-4">
+            {p.mbtiAxes.map((a) => {
+              const letter = letterFor(a);
+              const pct = Math.max(a.leftPct, a.rightPct);
+              return <TraitTile key={a.axis} emoji={MBTI_EMOJI[letter] ?? '⭐'} title={a.dominant} sub={`${pct}%`} color={C.personality} />;
+            })}
+          </div>
+          <div className="rounded-2xl border border-line p-4 space-y-3">
+            {p.mbtiAxes.map((a) => (
+              <div key={a.axis}>
+                <div className="flex justify-between text-[11px] mb-1">
+                  <span className={a.dominant === a.left ? 'font-extrabold text-ink' : 'text-ink-4'}>{a.left}</span>
+                  <span className="font-bold" style={{ color: C.personality }}>{Math.max(a.leftPct, a.rightPct)}% {a.dominant}</span>
+                  <span className={a.dominant === a.right ? 'font-extrabold text-ink' : 'text-ink-4'}>{a.right}</span>
+                </div>
+                <div className="h-3 rounded-full overflow-hidden flex" style={{ background: `${C.personality}22` }}>
+                  <div style={{ width: `${a.leftPct}%`, background: a.dominant === a.left ? C.personality : `${C.personality}55` }} />
+                  <div style={{ width: `${a.rightPct}%`, background: a.dominant === a.right ? C.personality : `${C.personality}55` }} />
                 </div>
               </div>
             ))}
           </div>
-          {p.analyticalScore && (
-            <p className="mt-5 text-[12px] text-ink-3">
-              Analytical &amp; logical aptitude score: <b className="text-ink">{p.analyticalScore.correct}/{p.analyticalScore.total}</b> correct.
-            </p>
-          )}
         </Page>
 
-        {/* ---------- PAGE 3 - PROFILING ---------- */}
-        <Page n={3} name={p.name}>
-          <H>Your profiling - current stage</H>
-          <p className="text-[12.5px] text-ink-2 mb-5 leading-relaxed">
-            Profiling shows where you are in your career-planning journey. Based on your readiness score of
-            <b className="text-ink"> {p.overallScore}/100</b>, you are at the <b className="text-red">{stage.stage}</b> stage.
-          </p>
-          <div className="flex items-center justify-between mb-6">
-            {['Unaware', 'Confused', 'Exploring', 'Clarity', 'Future-Ready'].map((st) => {
-              const active = st === stage.stage;
+        {/* ---------- PAGE 4 · PERSONALITY IN DETAIL ---------- */}
+        <Page n={4} name={p.name}>
+          <H color={C.personality}>Your Personality in detail</H>
+          <div className="space-y-3">
+            {DIMS.map((dim) => {
+              const a = p.mbtiAxes.find((x) => x.axis === dim.axis)!;
+              const letter = letterFor(a);
+              const pct = Math.max(a.leftPct, a.rightPct);
               return (
-                <div key={st} className="flex flex-col items-center flex-1">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ${active ? 'bg-red text-white' : 'bg-line-2 text-ink-4'}`}>{st[0]}</div>
-                  <p className={`text-[11px] mt-1 ${active ? 'font-bold text-red' : 'text-ink-4'}`}>{st}</p>
+                <div key={dim.axis} className="rounded-2xl border border-line p-3">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: `${C.personality}1A` }}>{MBTI_EMOJI[letter]}</span>
+                    <div className="flex-1">
+                      <p className="text-[13px] font-extrabold text-ink">{a.dominant} <span className="text-ink-4 font-normal">· {dim.title}</span></p>
+                    </div>
+                    <ScaleChips score={score19(pct)} color={C.personality} />
+                  </div>
+                  <DimBox color={C.personality}
+                    meaning={(EXTRA_PERSONALITY[letter] ?? [''])[0]}
+                    analysis={(MBTI_DESC[letter] ?? ['A natural part of how you work.'])[0]}
+                    development={DEV_PERSONALITY[letter] ?? ['Keep practising and stay curious.']} />
                 </div>
               );
             })}
           </div>
-          <div className="rounded-xl bg-bg border border-line p-5 space-y-3">
-            <p className="text-[12.5px] text-ink-2"><b className="text-ink">{stage.stage}:</b> {stage.note}</p>
-            <p className="text-[12.5px] text-ink-2"><b className="text-ink">Risks involved:</b> Wrong selection of a career path, career dissatisfaction, and mismatch with your interests.</p>
-            <p className="text-[12.5px] text-ink-2"><b className="text-ink">Action plan:</b> Explore strengths &amp; weaknesses - Explore career options - Gather information - Match the most suitable option - Early execution.</p>
-          </div>
         </Page>
 
-        {/* ---------- PAGE 4 - PERSONALITY CHART ---------- */}
-        <Page n={4} name={p.name}>
-          <H>Result of the career personality</H>
-          <div className="text-center mb-6">
-            <span className="text-5xl font-extrabold text-ink tracking-widest">{p.mbtiType}</span>
-            <p className="text-sm text-ink-3 mt-2">{p.mbtiAxes.map((a) => a.dominant).join(' · ')}</p>
-          </div>
-          <div className="space-y-5">
-            {p.mbtiAxes.map((a) => (
-              <MbtiSlider key={a.axis} axis={a.axis} left={a.left} right={a.right}
-                leftPct={a.leftPct} rightPct={a.rightPct} dominant={a.dominant} />
+        {/* ---------- PAGE 5 · INTERESTS ---------- */}
+        <Page n={5} name={p.name}>
+          <H color={C.interest}>Your Interests 🎯</H>
+          <p className="text-[12px] text-ink-3 mb-3">Interests are the activities you naturally enjoy. The more a bar leans towards <b>High</b>, the more it excites you.</p>
+          <ZoneChart data={p.interests} color={C.interest} labelWidth={120} />
+          <p className="text-[12px] font-extrabold text-ink mt-4 mb-2">Your top 3 interest areas</p>
+          <div className="grid grid-cols-3 gap-2.5">
+            {p.interests.slice(0, 3).map((b) => (
+              <TraitTile key={b.key} emoji={RIASEC_EMOJI[b.key] ?? '⭐'} title={b.label} sub={`${b.percent}% · ${level(b.percent)}`} color={C.interest} />
             ))}
           </div>
-          <p className="mt-6 text-[12px] text-ink-3 leading-relaxed">
-            Your four-letter type is the combination of your strongest preference on each dimension. The next four pages
-            explain what each preference means for your studies and career.
-          </p>
-        </Page>
-
-        {/* ---------- PAGES 5-8 - PERSONALITY DIMENSIONS ---------- */}
-        {DIMS.map((dim, idx) => {
-          const a = p.mbtiAxes.find((x) => x.axis === dim.axis)!;
-          const letter = axisLetter(dim.axis);
-          const bullets = MBTI_DESC[letter] ?? [];
-          return (
-            <Page key={dim.axis} n={5 + idx} name={p.name}>
-              <H>Your career personality analysis</H>
-              <div className="flex items-start gap-5">
-                <div className="w-24 shrink-0 text-center">
-                  <div className="w-20 h-20 rounded-2xl bg-red text-white flex items-center justify-center text-4xl font-extrabold mx-auto">{letter}</div>
-                  <p className="text-[12px] font-bold text-ink mt-2">{a.dominant}</p>
-                  <p className="text-[18px] font-extrabold text-red">{Math.max(a.leftPct, a.rightPct)}%</p>
-                </div>
-                <div className="flex-1">
-                  <p className="text-[13px] font-bold text-ink mb-3">{dim.title}</p>
-                  <Bullets items={[...bullets, ...(EXTRA_PERSONALITY[letter] ?? [])]} />
-                </div>
-              </div>
-              {idx === 3 && (
-                <div className="mt-6">
-                  <p className="text-[13px] font-bold text-ink mb-2">Your key strengths</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {p.strengths.map((s, i) => (
-                      <div key={i} className="rounded-lg border border-line px-3 py-2 text-[12px] text-ink-2">✓ {s}</div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </Page>
-          );
-        })}
-
-        {/* ---------- PAGE 9 - INTERESTS CHART ---------- */}
-        <Page n={9} name={p.name}>
-          <H>Your career interest types</H>
-          <p className="text-[12.5px] text-ink-3 mb-4">The Career Interest Assessment measures six interest patterns (RIASEC). Your strongest themes shape your best-fit careers.</p>
-          <ChartCard data={p.interests} />
-          <div className="mt-6 grid grid-cols-3 gap-3">
-            {p.interests.slice(0, 3).map((b, i) => (
-              <div key={b.key} className="rounded-xl border border-line p-3 text-center">
-                <div className="w-8 h-8 mx-auto rounded-full bg-red text-white text-xs font-bold flex items-center justify-center mb-1">{i + 1}</div>
-                <p className="text-[12px] font-bold text-ink">{b.label}</p>
-                <p className="text-[12px] text-red font-bold">{b.percent}%</p>
-              </div>
-            ))}
-          </div>
-        </Page>
-
-        {/* ---------- PAGE 10 - INTEREST ANALYSIS ---------- */}
-        <Page n={10} name={p.name}>
-          <H>Your career interest analysis</H>
-          {p.interests.slice(0, 3).map((b) => (
-            <div key={b.key} className="mb-4">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="w-7 h-7 rounded-lg bg-red text-white text-sm font-extrabold flex items-center justify-center">{b.label[0]}</span>
-                <p className="text-[13px] font-bold text-ink">{b.label} - {b.percent}%</p>
-              </div>
-              <Bullets items={INTEREST_DESC[b.label] ?? ['A strong interest area worth exploring through projects and electives.']} />
-            </div>
-          ))}
-        </Page>
-
-        {/* ---------- PAGE 11 - MOTIVATORS CHART ---------- */}
-        <Page n={11} name={p.name}>
-          <H>Your career motivators</H>
-          <p className="text-[12.5px] text-ink-3 mb-4">Values that make work feel satisfying for you, rated from your dream-job preferences.</p>
-          <ChartCard data={p.motivators} labelWidth={150} />
-        </Page>
-
-        {/* ---------- PAGE 12 - MOTIVATOR ANALYSIS ---------- */}
-        <Page n={12} name={p.name}>
-          <H>Your career motivator analysis</H>
-          {p.motivators.slice(0, 3).map((b) => (
-            <div key={b.key} className="mb-4">
-              <p className="text-[13px] font-bold text-ink mb-1.5">{b.label} - {b.percent}%</p>
-              <Bullets items={MOTIVATOR_DESC[b.label] ?? ['An important driver for your career satisfaction.']} />
-            </div>
-          ))}
-        </Page>
-
-        {/* ---------- PAGE 13 - LEARNING CHART ---------- */}
-        <Page n={13} name={p.name}>
-          <H>Your learning style</H>
-          <p className="text-[12.5px] text-ink-3 mb-4">Your dominant learning style is <b className="text-ink">{p.dominantLearning}</b>.</p>
-          <ChartCard data={p.learning} labelWidth={140} />
-          <div className="mt-6 flex justify-center gap-6">
-            {p.learning.slice(0, 2).map((b) => <Donut key={b.key} percent={b.percent} label={b.label} />)}
-          </div>
-        </Page>
-
-        {/* ---------- PAGE 14 - LEARNING ANALYSIS ---------- */}
-        <Page n={14} name={p.name}>
-          <H>Your learning style analysis</H>
-          <p className="text-[13px] font-bold text-ink mb-2">{p.dominantLearning}</p>
-          <Bullets items={LEARNING_DESC[p.dominantLearning] ?? ['You learn well when material matches this style.']} />
-          <p className="text-[13px] font-bold text-ink mt-5 mb-2">Learning improvement strategies</p>
-          <Bullets items={LEARNING_TIPS[p.dominantLearning] ?? ['Match study methods to your dominant style for faster recall.']} />
-        </Page>
-
-        {/* ---------- PAGE 15 - INTELLIGENCES CHART ---------- */}
-        <Page n={15} name={p.name}>
-          <H>Your multiple intelligences</H>
-          <p className="text-[12.5px] text-ink-3 mb-4">Howard Gardner&apos;s eight intelligences. Your strongest is <b className="text-ink">{p.dominantIntelligence}</b>.</p>
-          <ChartCard data={ints} labelWidth={185} />
-        </Page>
-
-        {/* ---------- PAGE 16 - INTELLIGENCES ANALYSIS ---------- */}
-        <Page n={16} name={p.name}>
-          <H>Your multiple intelligences analysis</H>
-          {ints.slice(0, 3).map((b) => (
-            <div key={b.key} className="mb-4">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${LEVEL_STYLE[b.level]}`}>{b.level}</span>
-                <p className="text-[13px] font-bold text-ink">{b.label} - {b.percent}%</p>
-              </div>
-              <Bullets items={INTELLIGENCE_DESC[b.key] ?? ['A natural strength to build your studies and career around.']} />
-            </div>
-          ))}
-        </Page>
-
-        {/* ---------- PAGE 17 - EQ ---------- */}
-        <Page n={17} name={p.name}>
-          <H>Your emotional intelligence (EQ)</H>
-          <p className="text-[12.5px] text-ink-3 mb-4">Derived from your interpersonal &amp; intrapersonal responses and personality - how you understand and manage emotions.</p>
-          <ChartCard colorMode="level" labelWidth={150} data={p.eq.map((b) => ({ key: b.key, label: b.label, percent: b.percent }))} />
-          <div className="mt-6 grid grid-cols-3 gap-3">
-            {p.eq.slice(0, 3).map((b) => (
+          <div className="mt-4 space-y-2">
+            {p.interests.slice(0, 2).map((b) => (
               <div key={b.key} className="rounded-xl border border-line p-3">
-                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${LEVEL_STYLE[b.level]}`}>{b.level}</span>
-                <p className="text-[12px] font-bold text-ink mt-2">{b.label}</p>
+                <p className="text-[12px] font-extrabold text-ink mb-1">{RIASEC_EMOJI[b.key]} {b.label}</p>
+                <Bullets color={C.interest} items={INTEREST_DESC[b.label] ?? ['A strong interest area worth exploring.']} />
               </div>
             ))}
           </div>
         </Page>
 
-        {/* ---------- PAGES 18-20 - SKILLS ---------- */}
-        <Page n={18} name={p.name}>
-          <H>Your skills &amp; abilities</H>
-          <div className="inline-block bg-ink text-white text-sm font-bold px-4 py-1.5 rounded-lg mb-5">
-            Overall Skills &amp; Abilities - {p.overallSkills}% ({p.overallSkills >= 67 ? 'Good' : 'Developing'})
+        {/* ---------- PAGE 6 · MULTIPLE INTELLIGENCES ---------- */}
+        <Page n={6} name={p.name}>
+          <H color={C.intelligence}>Your Smarts 💡 (Multiple Intelligences)</H>
+          <p className="text-[12px] text-ink-3 mb-3">Everyone is smart in different ways! Here are your 8 kinds of smart. Your strongest is <b>{p.dominantIntelligence}</b>.</p>
+          <ZoneChart data={ints} color={C.intelligence} labelWidth={185} />
+          <p className="text-[12px] font-extrabold text-ink mt-4 mb-2">Your top 3 kinds of smart</p>
+          <div className="grid grid-cols-3 gap-2.5">
+            {ints.slice(0, 3).map((b) => (
+              <TraitTile key={b.key} emoji={INT_EMOJI[b.key] ?? '⭐'} title={b.label.split(' (')[0]} sub={`${b.percent}% · ${b.level}`} color={C.intelligence} />
+            ))}
           </div>
-          {p.skills.slice(0, 3).map((b) => (
-            <SkillBlock key={b.key} bar={b} note={SKILL_NOTE[b.label]} />
-          ))}
         </Page>
-        <Page n={19} name={p.name}>
-          <H>Your skills &amp; abilities</H>
-          {p.skills.slice(3, 6).map((b) => (
-            <SkillBlock key={b.key} bar={b} note={SKILL_NOTE[b.label]} />
-          ))}
+
+        {/* ---------- PAGE 7 · SKILLS & ABILITIES ---------- */}
+        <Page n={7} name={p.name}>
+          <H color={C.skill}>Your Skills &amp; Abilities 🛠️</H>
+          <div className="flex items-center gap-3 mb-3">
+            <Donut percent={p.overallSkills} label="Overall" color={C.skill} />
+            <p className="text-[12px] text-ink-2">Your overall skill score is <b style={{ color: C.skill }}>{p.overallSkills}% ({level(p.overallSkills)})</b>. The bars below show where you shine and where you can grow.</p>
+          </div>
+          <ZoneChart data={p.skills.map((s) => ({ key: s.key, label: s.label, percent: s.percent }))} color={C.skill} labelWidth={185} />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-xl border border-line p-3">
+              <p className="text-[11px] font-extrabold text-ink mb-1">💪 Your strengths</p>
+              <Bullets color={C.skill} items={p.skills.slice(0, 3).map((s) => `${s.label} — ${s.rating}`)} />
+            </div>
+            <div className="rounded-xl border border-line p-3">
+              <p className="text-[11px] font-extrabold text-ink mb-1">🌱 Grow these</p>
+              <Bullets color={C.interest} items={p.skills.slice(-2).map((s) => `${s.label} — ${s.rating}`)} />
+            </div>
+          </div>
         </Page>
-        <Page n={20} name={p.name}>
-          <H>Your skills &amp; abilities</H>
-          {p.skills.slice(6, 8).map((b) => (
-            <SkillBlock key={b.key} bar={b} note={SKILL_NOTE[b.label]} />
-          ))}
+
+        {/* ---------- PAGE 8 · MOTIVATORS & LEARNING ---------- */}
+        <Page n={8} name={p.name}>
+          <H color={C.motivator}>What drives you ⭐ &amp; how you learn 🧠</H>
+          <p className="text-[12px] font-extrabold text-ink mb-2">Your motivators (what makes work feel happy)</p>
+          <ZoneChart data={p.motivators} color={C.motivator} labelWidth={170} />
+          <p className="text-[12px] font-extrabold text-ink mt-4 mb-2">Your learning style — you learn best by: <span style={{ color: C.learning }}>{p.dominantLearning}</span></p>
+          <ZoneChart data={p.learning} color={C.learning} labelWidth={150} />
+          <div className="mt-3 rounded-xl border border-line p-3">
+            <p className="text-[11px] font-extrabold text-ink mb-1">📌 Study tips for you</p>
+            <Bullets color={C.learning} items={LEARNING_TIPS[p.dominantLearning] ?? ['Match study methods to your style for faster learning.']} />
+          </div>
+        </Page>
+
+        {/* ---------- PAGE 9 · EMOTIONAL INTELLIGENCE ---------- */}
+        <Page n={9} name={p.name}>
+          <H color={C.eq}>Your Emotional Strength ❤️</H>
+          <p className="text-[12px] text-ink-3 mb-3">This is how well you understand and handle feelings — yours and other people&apos;s. It helps you make friends, lead and stay calm.</p>
+          <ZoneChart data={p.eq.map((e) => ({ key: e.key, label: e.label, percent: e.percent }))} color={C.eq} labelWidth={170} />
+          <div className="grid grid-cols-3 gap-2.5 mt-4">
+            {p.eq.slice(0, 3).map((b) => (
+              <TraitTile key={b.key} emoji="💚" title={b.label} sub={`${b.percent}% · ${b.level}`} color={C.eq} />
+            ))}
+          </div>
           {p.analyticalScore && (
-            <div className="mt-5 rounded-xl bg-bg border border-line p-4">
-              <p className="text-[13px] font-bold text-ink mb-1">Analytical &amp; logical aptitude</p>
-              <p className="text-[12.5px] text-ink-2">You answered <b>{p.analyticalScore.correct} of {p.analyticalScore.total}</b> aptitude questions correctly. These directly feed your numerical, logical, verbal and spatial scores above.</p>
+            <div className="mt-4 rounded-2xl p-4 text-white flex items-center gap-3" style={{ background: C.cluster }}>
+              <span className="text-2xl">🧮</span>
+              <p className="text-[12.5px]">In the thinking quiz you got <b>{p.analyticalScore.correct} out of {p.analyticalScore.total}</b> correct. Nice reasoning!</p>
             </div>
           )}
         </Page>
 
-        {/* ---------- PAGE 21 - CLUSTERS CHART ---------- */}
-        <Page n={21} name={p.name}>
-          <H>Your career clusters</H>
-          <p className="text-[12.5px] text-ink-3 mb-4">Clusters group similar occupations. These are the best clusters for you to explore.</p>
-          <ChartCard data={p.clusters} labelWidth={170} />
-        </Page>
-
-        {/* ---------- PAGES 22-23 - SELECTED CLUSTERS ---------- */}
-        <Page n={22} name={p.name}>
-          <H>Your selected career clusters</H>
-          {p.clusters.slice(0, 2).map((b, i) => (
-            <div key={b.key} className="mb-5 flex items-start gap-4">
-              <div className="w-12 h-12 rounded-full bg-red text-white text-lg font-extrabold flex items-center justify-center shrink-0">{i + 1}</div>
-              <div>
-                <p className="text-[14px] font-bold text-ink">{b.label} - {b.percent}%</p>
-                <Bullets items={clusterDesc(b.label)} />
-              </div>
-            </div>
-          ))}
-        </Page>
-        <Page n={23} name={p.name}>
-          <H>Your selected career clusters</H>
-          {p.clusters.slice(2, 4).map((b, i) => (
-            <div key={b.key} className="mb-5 flex items-start gap-4">
-              <div className="w-12 h-12 rounded-full bg-ink text-white text-lg font-extrabold flex items-center justify-center shrink-0">{i + 3}</div>
-              <div>
-                <p className="text-[14px] font-bold text-ink">{b.label} - {b.percent}%</p>
-                <Bullets items={clusterDesc(b.label)} />
-              </div>
-            </div>
-          ))}
-        </Page>
-
-        {/* ---------- PAGES 24-25 - SUBJECTS ---------- */}
-        {[0, 1].map((pageIdx) => (
-          <Page key={`subj-${pageIdx}`} n={24 + pageIdx} name={p.name}>
-            <H>Top subject recommendations for you</H>
-            {streams.slice(pageIdx * 2, pageIdx * 2 + 2).map((st, i) => (
-              <div key={st.name} className="mb-5 rounded-xl border border-line p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-2xl">{st.icon}</span>
-                  <p className="text-[14px] font-bold text-ink">{pageIdx * 2 + i + 1}. {st.name}</p>
+        {/* ---------- PAGE 10 · CAREER CLUSTERS ---------- */}
+        <Page n={10} name={p.name}>
+          <H color={C.cluster}>Your Career Clusters 🗂️</H>
+          <p className="text-[12px] text-ink-3 mb-3">A cluster is a family of careers that need similar skills. These are the best families for you to explore.</p>
+          <ZoneChart data={p.clusters} color={C.cluster} labelWidth={170} />
+          <div className="grid grid-cols-2 gap-2.5 mt-4">
+            {p.clusters.slice(0, 4).map((b, i) => (
+              <div key={b.key} className="rounded-xl border border-line p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-6 h-6 rounded-full text-white text-[11px] font-bold flex items-center justify-center" style={{ background: PALETTE[i % PALETTE.length] }}>{i + 1}</span>
+                  <p className="text-[12px] font-extrabold text-ink">{b.label}</p>
+                  <span className="ml-auto text-[11px] font-bold" style={{ color: C.cluster }}>{b.percent}%</span>
                 </div>
-                <div className="grid grid-cols-[120px_1fr] gap-4 items-center">
-                  <div className="flex flex-col items-center">
-                    <Donut percent={st.percent} label="Suitability" />
-                    <div className="mt-2 text-center">
-                      <p className="text-[10px] font-bold text-red uppercase">Mandatory</p>
-                      <p className="text-[11px] text-ink-2 leading-tight">{st.mandatory.join(' · ')}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-ink-4 uppercase mb-1.5">Recommended optional subjects</p>
-                    <ChartCard labelWidth={120} data={st.optional.map((name, j) => ({
-                      key: name, label: name, percent: Math.max(15, 55 - j * 8),
-                    }))} />
-                  </div>
-                </div>
+                <Bullets color={C.cluster} items={clusterDesc(b.label)} />
               </div>
             ))}
-          </Page>
-        ))}
+          </div>
+        </Page>
 
-        {/* ---------- PAGES 26-27 - CAREER PATHS ---------- */}
-        <Page n={26} name={p.name}>
-          <H>Your best-fit career paths</H>
-          <p className="text-[12.5px] text-ink-3 mb-4">Combining your personality, interests, intelligences and skills, these careers fit you best.</p>
+        {/* ---------- PAGE 11 · SUBJECTS ---------- */}
+        <Page n={11} name={p.name}>
+          <H color={C.interest}>Best Subjects / Streams for you 📚</H>
+          <p className="text-[12px] text-ink-3 mb-3">Based on your interests and skills, these streams suit you best. Higher % = a better fit.</p>
+          <div className="grid grid-cols-2 gap-3">
+            {streams.map((st, i) => (
+              <div key={st.name} className="rounded-2xl border border-line p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">{st.icon}</span>
+                  <p className="text-[13px] font-extrabold text-ink">{i + 1}. {st.name}</p>
+                  <span className="ml-auto text-[12px] font-extrabold" style={{ color: PALETTE[i % PALETTE.length] }}>{st.percent}%</span>
+                </div>
+                <div className="h-2.5 rounded-full bg-line-2 overflow-hidden mb-2">
+                  <div className="h-full rounded-full" style={{ width: `${st.percent}%`, background: PALETTE[i % PALETTE.length] }} />
+                </div>
+                <p className="text-[10px] font-bold uppercase mb-0.5" style={{ color: RED }}>Core subjects</p>
+                <p className="text-[11px] text-ink-2 mb-1.5">{st.mandatory.join(' · ')}</p>
+                <p className="text-[10px] font-bold uppercase text-ink-4 mb-0.5">Good options</p>
+                <p className="text-[11px] text-ink-2">{st.optional.join(' · ')}</p>
+              </div>
+            ))}
+          </div>
+        </Page>
+
+        {/* ---------- PAGE 12 · BEST-FIT CAREERS ---------- */}
+        <Page n={12} name={p.name}>
+          <H color={C.skill}>Your Best-Fit Careers 🚀</H>
           {hasRecommendations ? (
             <>
+              <p className="text-[12px] text-ink-3 mb-3">Putting it all together, these careers match you best. The bar shows how strong the match is.</p>
               <div className="space-y-2">
                 {p.topCareers.slice(0, 6).map((c, i) => (
-                  <div key={c.title} className="flex items-center gap-3 p-2.5 rounded-xl border border-line">
-                    <span className="w-7 h-7 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0" style={{ background: barColor(i) }}>{i + 1}</span>
+                  <div key={c.title} className="flex items-center gap-3 p-2.5 rounded-2xl border border-line">
+                    <span className="w-7 h-7 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0" style={{ background: PALETTE[i % PALETTE.length] }}>{i + 1}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-ink text-[13px]">{c.title}</p>
-                      <p className="text-[11px] text-ink-4 truncate">{c.roles} · {c.cluster}</p>
+                      <p className="font-extrabold text-ink text-[13px]">{c.title}</p>
+                      <p className="text-[10.5px] text-ink-4 truncate">{c.roles} · {c.cluster}</p>
                     </div>
-                    <div className="w-28 shrink-0">
-                      <div className="flex justify-between items-center mb-0.5">
-                        <span className="text-[11px] font-bold" style={{ color: levelColor(c.match) }}>{c.match}%</span>
+                    <div className="w-32 shrink-0">
+                      <div className="h-2.5 rounded-full bg-line-2 overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${c.match}%`, background: VERDICT_BG[c.verdict] ?? C.skill }} />
                       </div>
-                      <Gauge percent={c.match} color={levelColor(c.match)} />
+                      <p className="text-[10px] font-bold text-right mt-0.5" style={{ color: VERDICT_BG[c.verdict] ?? C.skill }}>{c.match}% match</p>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${VERDICT_STYLE[c.verdict]}`}>{c.verdict}</span>
+                    <span className={`text-[9.5px] font-bold px-2 py-1 rounded-full shrink-0 ${VERDICT_STYLE[c.verdict]}`} style={{ background: VERDICT_BG[c.verdict] }}>{c.verdict}</span>
                   </div>
                 ))}
               </div>
-              <div className="mt-5 bg-red-soft border border-red-line rounded-xl p-4">
-                <p className="text-[13px] font-bold text-ink mb-1">Top recommendation: {p.topCareers[0]?.title}</p>
-                <p className="text-[12px] text-ink-2">
-                  {p.name}, your profile aligns most strongly with <b>{p.topCareers[0]?.title}</b> ({p.topCareers[0]?.match}% match)
-                  {p.topCareers[1] ? `, with ${p.topCareers[1].title} and ${p.topCareers[2]?.title} as strong alternatives.` : '.'}
-                </p>
+              <div className="mt-4 rounded-2xl p-4" style={{ background: `${C.skill}12`, border: `1.5px solid ${C.skill}44` }}>
+                <p className="text-[13px] font-extrabold text-ink mb-1">🌟 Your #1 match: {p.topCareers[0]?.title}</p>
+                <p className="text-[12px] text-ink-2">{firstName}, your profile fits <b>{p.topCareers[0]?.title}</b> the most ({p.topCareers[0]?.match}% match){p.topCareers[1] ? `, with ${p.topCareers[1].title} and ${p.topCareers[2]?.title} as great backups.` : '.'}</p>
               </div>
             </>
           ) : (
-            <div className="rounded-xl border border-dashed border-line p-5 text-[12.5px] text-ink-2 leading-relaxed">
-              Answer more questions to unlock fair career recommendations.
-            </div>
-          )}
-        </Page>
-        <Page n={27} name={p.name}>
-          <H>Career paths - why they fit</H>
-          {hasRecommendations ? (
-            <div className="space-y-3">
-              {p.topCareers.slice(0, 5).map((c, i) => (
-                <div key={c.title} className="rounded-xl border border-line p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-[13px] font-bold text-ink">{i + 1}. {c.title}</p>
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${VERDICT_STYLE[c.verdict]}`}>{c.match}% · {c.verdict}</span>
-                  </div>
-                  <p className="text-[12px] text-ink-2">Roles: {c.roles}. Cluster: {c.cluster}. This path rewards your {p.topInterests[0]} interest and {p.skills[0]?.label.replace(' Ability', '')} strength.</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-line p-5 text-[12.5px] text-ink-2 leading-relaxed">
-              No career path is recommended yet because the assessment has not been answered. Please complete the questions so the analysis can stay fair and accurate.
-            </div>
+            <div className="rounded-2xl border border-dashed border-line p-6 text-[12.5px] text-ink-2 leading-relaxed">Answer the assessment to unlock your best-fit career recommendations.</div>
           )}
         </Page>
 
-        {/* ---------- PAGE 28 - DEEP DIVE: WORK + ROADMAP ---------- */}
-        <Page n={28} name={p.name}>
-          {hasRecommendations ? (
+        {/* ---------- PAGE 13 · DEEP DIVE ---------- */}
+        <Page n={13} name={p.name}>
+          {hasRecommendations && detail && chosenCareer ? (
             <>
-              <H>Chosen path deep dive - {chosenTitle}</H>
-              <p className="text-[12px] text-ink-3 mb-3">{chosenCareer!.cluster} · {chosenCareer!.education} · {chosenCareer!.salary}</p>
-              <p className="text-[13px] font-bold text-ink mb-2">Work nature</p>
-              <Bullets items={detail!.workNature.slice(0, 5)} />
-              <p className="text-[13px] font-bold text-ink mt-4 mb-2">Education roadmap</p>
-              <div className="grid grid-cols-2 gap-3">
-                <RoadCard title="Graduation" items={detail!.roadmap.graduation} />
-                <RoadCard title="Post-graduation" items={detail!.roadmap.postGraduation} />
-                <RoadCard title="Certifications" items={detail!.roadmap.certifications} />
-                <RoadCard title="Occupations" items={detail!.roadmap.occupations} />
+              <H color={C.cluster}>A closer look: {chosenTitle}</H>
+              <p className="text-[12px] text-ink-3 mb-3">{chosenCareer.cluster} · {chosenCareer.education} · {chosenCareer.salary}</p>
+              <p className="text-[12px] font-extrabold text-ink mb-1.5">What you would do 👩‍💻</p>
+              <Bullets color={C.cluster} items={detail.workNature.slice(0, 4)} />
+              <p className="text-[12px] font-extrabold text-ink mt-4 mb-2">Your road map 🗺️</p>
+              <div className="grid grid-cols-2 gap-2.5">
+                <RoadCard title="Graduation" items={detail.roadmap.graduation} color={C.skill} />
+                <RoadCard title="Post-graduation" items={detail.roadmap.postGraduation} color={C.motivator} />
+                <RoadCard title="Certifications" items={detail.roadmap.certifications} color={C.interest} />
+                <RoadCard title="Jobs you can do" items={detail.roadmap.occupations} color={C.intelligence} />
               </div>
-            </>
-          ) : (
-            <>
-              <H>Chosen path deep dive</H>
-              <div className="rounded-xl border border-dashed border-line p-5 text-[12.5px] text-ink-2 leading-relaxed">
-                A deep dive will appear here after the assessment is answered. For now, there is no fair way to choose a path.
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-4">
-                <Meta label="Career Focus" value={p.careerFocus} />
-                <Meta label="Learning Style" value={p.dominantLearning} />
-              </div>
-            </>
-          )}
-        </Page>
-
-        {/* ---------- PAGE 29 - DEEP DIVE: SALARY + GAPS ---------- */}
-        <Page n={29} name={p.name}>
-          {hasRecommendations ? (
-            <>
-              <H>Chosen path - salary, gaps &amp; next steps</H>
-              <p className="text-[13px] font-bold text-ink mb-2">Salary growth - {chosenTitle}</p>
-              <div className="space-y-2 mb-5">
+              <p className="text-[12px] font-extrabold text-ink mt-4 mb-1.5">How pay grows over time 💰</p>
+              <div className="space-y-1.5">
                 {salary.map((s, i) => (
                   <div key={s.level}>
-                    <div className="flex justify-between text-[11px] text-ink-3"><span>{s.level}</span><span className="font-bold text-ink">{toLakhs(s.amount)}</span></div>
-                    <div className="h-2 rounded-full bg-line-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.max(12, Math.round((s.amount / maxSalary) * 100))}%`, background: i === 0 ? RED : '#6C6E78' }} /></div>
+                    <div className="flex justify-between text-[10.5px] text-ink-3"><span>{s.level}</span><span className="font-bold text-ink">{toLakhs(s.amount)}</span></div>
+                    <div className="h-2 rounded-full bg-line-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.max(12, Math.round((s.amount / maxSalary) * 100))}%`, background: i === 0 ? C.skill : C.cluster }} /></div>
                   </div>
                 ))}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-[13px] font-bold text-ink mb-2">Gap analysis</p>
-                  <Bullets items={p.gaps} />
-                </div>
-                <div>
-                  <p className="text-[13px] font-bold text-ink mb-2">Your next steps</p>
-                  <Bullets items={p.nextSteps} mark="✓" />
-                </div>
               </div>
             </>
           ) : (
             <>
-              <H>Next steps</H>
-              <div className="rounded-xl border border-dashed border-line p-5 text-[12.5px] text-ink-2 leading-relaxed">
-                Complete the assessment to unlock salary estimates, gaps to close, and your next steps.
-              </div>
-              <div className="mt-4">
-                <p className="text-[13px] font-bold text-ink mb-2">What to do now</p>
-                <Bullets items={p.nextSteps.slice(0, 3)} mark="→" />
-              </div>
+              <H color={C.cluster}>A closer look at your path</H>
+              <div className="rounded-2xl border border-dashed border-line p-6 text-[12.5px] text-ink-2">Complete the assessment to unlock a detailed career deep-dive with road map and salary growth.</div>
             </>
           )}
         </Page>
 
-        {/* ---------- PAGE 30 - METHODOLOGY ---------- */}
-        <Page n={30} name={p.name}>
-          <H>Assessment methodology summary</H>
-          <p className="text-[12px] text-ink-3 mb-4">Based on correlation theory and standard psychometric models. Every input below is derived from your answers.</p>
-          <div className="rounded-xl border border-line divide-y divide-line mb-5">
-            <MethRow label="Career Personality" value={`${p.mbtiType} - ${p.mbtiAxes.map((a) => a.dominant).join(' + ')}`} />
-            <MethRow label="Career Interests" value={p.topInterests.join(' + ')} />
-            <MethRow label="Career Motivators" value={p.motivators.slice(0, 2).map((m) => m.label).join(' + ')} />
-            <MethRow label="Learning Style" value={p.dominantLearning} />
-            <MethRow label="Multiple Intelligences" value={ints.slice(0, 2).map((i) => i.label.split(' (')[0]).join(' + ') || '-'} />
-            <MethRow label="Skills & Abilities" value={`Overall ${p.overallSkills}% · ${p.skills[0]?.label.replace(' Ability', '')} highest`} />
-            <MethRow label="Analytical & Logical" value={p.analyticalScore ? `${p.analyticalScore.correct}/${p.analyticalScore.total} correct` : '-'} />
-            <MethRow label="Selected Clusters" value={p.clusters.slice(0, 4).map((c) => c.label).join(' + ')} />
-            <MethRow label="Report Reliability" value={`${conf.percent}% - ${conf.label}`} />
+        {/* ---------- PAGE 14 · NEXT STEPS + SUMMARY ---------- */}
+        <Page n={14} name={p.name}>
+          <H color={C.skill}>Your action plan ✅</H>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="rounded-2xl border border-line p-4">
+              <p className="text-[12px] font-extrabold text-ink mb-2 flex items-center gap-1.5"><TrendingUp className="w-4 h-4" style={{ color: C.interest }} /> Things to work on</p>
+              <Bullets color={C.interest} items={p.gaps} />
+            </div>
+            <div className="rounded-2xl border border-line p-4">
+              <p className="text-[12px] font-extrabold text-ink mb-2 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" style={{ color: C.skill }} /> Your next steps</p>
+              <Bullets color={C.skill} items={p.nextSteps} />
+            </div>
           </div>
-          <div className="rounded-2xl bg-ink text-white p-5 flex items-center justify-between">
+
+          <p className="text-[12px] font-extrabold text-ink mb-2">Your report at a glance</p>
+          <div className="rounded-2xl border border-line divide-y divide-line mb-4">
+            <SumRow emoji="🧩" label="Personality" value={`${p.mbtiType} · ${p.mbtiAxes.map((a) => a.dominant).join(', ')}`} />
+            <SumRow emoji="🎯" label="Top interests" value={p.topInterests.join(', ')} />
+            <SumRow emoji="💡" label="Top intelligence" value={p.dominantIntelligence ?? '—'} />
+            <SumRow emoji="🛠️" label="Skills" value={`Overall ${p.overallSkills}% · ${p.skills[0]?.label} strongest`} />
+            <SumRow emoji="🧠" label="Learning style" value={p.dominantLearning} />
+            <SumRow emoji="🗂️" label="Top clusters" value={p.clusters.slice(0, 3).map((c) => c.label).join(', ')} />
+          </div>
+
+          <div className="rounded-2xl p-5 text-white flex items-center justify-between" style={{ background: `linear-gradient(135deg, ${C.personality}, ${C.motivator})` }}>
             <div>
-              <p className="font-bold text-sm">Want a human to walk you through this?</p>
-              <p className="text-xs text-white/70">Talk to a OneGrasp counsellor and lock your execution plan.</p>
+              <p className="font-extrabold text-sm">Want a real person to guide you? 🤝</p>
+              <p className="text-xs text-white/80">Talk to a OneGrasp career coach to build your plan.</p>
             </div>
             <div className="flex gap-2 text-xs">
-              <span className="inline-flex items-center gap-1 bg-white/10 px-3 py-2 rounded-lg"><Phone className="w-3.5 h-3.5" /> 8977760443</span>
-              <span className="inline-flex items-center gap-1 bg-red px-3 py-2 rounded-lg"><Mail className="w-3.5 h-3.5" /> support@onegrasp.com</span>
+              <span className="inline-flex items-center gap-1 bg-white/20 px-3 py-2 rounded-lg"><Phone className="w-3.5 h-3.5" /> 8977760443</span>
+              <span className="inline-flex items-center gap-1 bg-white/20 px-3 py-2 rounded-lg"><Mail className="w-3.5 h-3.5" /> support@onegrasp.com</span>
             </div>
           </div>
-          <p className="text-[10px] text-ink-4 mt-4 text-center">Generated {generated} · OneGrasp Career Counselling · Non-Commercial Use</p>
+          <p className="text-[10px] text-ink-4 mt-3 text-center">Generated {generated} · OneGrasp Career Counselling · Every number comes from your own answers.</p>
         </Page>
 
-        {/* back to dashboard (screen only) */}
         <div className="report-toolbar flex justify-center pt-2">
           <Link href="/dashboard" className="inline-flex items-center gap-2 bg-ink text-white font-semibold px-6 py-3 rounded-xl hover:bg-ink-2">
             <LayoutDashboard className="w-4 h-4" /> Back to Dashboard
@@ -913,108 +688,85 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
 
 /* ----------------------------- sub-components ----------------------------- */
 
-function SkillBlock({ bar, note }: { bar: Bar & { rating: string }; note?: string[] }) {
+function StatCard({ emoji, label, value, color }: { emoji: string; label: string; value: string; color: string }) {
   return (
-    <div className="mb-4 flex items-start gap-4">
-      <Donut percent={bar.percent} label={bar.rating} />
-      <div className="flex-1 pt-1">
-        <p className="text-[13px] font-bold text-ink mb-1.5">{bar.label} - {bar.rating}</p>
-        <Bullets items={note ?? ['A useful ability that broadens your career options.']} />
-      </div>
+    <div className="rounded-2xl border border-line p-4 text-center" style={{ background: `${color}0D` }}>
+      <div className="text-2xl mb-1">{emoji}</div>
+      <p className="text-[10px] uppercase tracking-wide text-ink-4">{label}</p>
+      <p className="text-[16px] font-extrabold" style={{ color }}>{value}</p>
     </div>
   );
 }
 
-function RoadCard({ title, items }: { title: string; items: string[] }) {
+function RoadCard({ title, items, color }: { title: string; items: string[]; color: string }) {
   return (
-    <div className="rounded-lg border border-line p-3">
-      <p className="text-[11px] font-bold text-red mb-1">{title}</p>
-      <ul className="space-y-0.5">{items.slice(0, 5).map((t) => <li key={t} className="text-[11.5px] text-ink-2">• {t}</li>)}</ul>
+    <div className="rounded-xl border border-line overflow-hidden">
+      <div className="px-3 py-1 text-[10px] font-bold text-white" style={{ background: color }}>{title}</div>
+      <ul className="px-3 py-2 space-y-0.5">{items.slice(0, 4).map((t) => <li key={t} className="text-[11px] text-ink-2">• {t}</li>)}</ul>
     </div>
   );
 }
 
-function MethRow({ label, value }: { label: string; value: string }) {
+function SumRow({ emoji, label, value }: { emoji: string; label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[0.8fr_1.6fr] gap-3 px-4 py-2.5 items-start">
-      <p className="text-[12.5px] font-bold text-ink">{label}</p>
-      <p className="text-[12.5px] text-ink-2">{value}</p>
+    <div className="grid grid-cols-[1fr_2fr] gap-3 px-4 py-2.5 items-start">
+      <p className="text-[12px] font-bold text-ink flex items-center gap-1.5"><span>{emoji}</span>{label}</p>
+      <p className="text-[12px] text-ink-2">{value}</p>
     </div>
   );
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-ink-4 text-[10px] uppercase tracking-wide">{label}</p>
-      <p className="text-ink font-bold text-sm">{value}</p>
-    </div>
-  );
+/* personality axis → dominant letter */
+function letterFor(a: { axis: string; dominant: string }) {
+  switch (a.axis) {
+    case 'EI': return a.dominant === 'Extrovert' ? 'E' : 'I';
+    case 'SN': return a.dominant === 'Sensing' ? 'S' : 'N';
+    case 'TF': return a.dominant === 'Thinking' ? 'T' : 'F';
+    default: return a.dominant === 'Judging' ? 'J' : 'P';
+  }
 }
+const DIMS = [
+  { axis: 'EI', title: 'Where you get your energy' },
+  { axis: 'SN', title: 'How you take in information' },
+  { axis: 'TF', title: 'How you make decisions' },
+  { axis: 'JP', title: 'How you plan your world' },
+] as const;
 
 /* ----------------------------- content maps ----------------------------- */
 
 const EXTRA_PERSONALITY: Record<string, string[]> = {
-  I: ['You are a good listener and reflect before you speak.'],
-  E: ['You think out loud and energise the people around you.'],
-  S: ['You notice facts and details and learn best from practice.'],
-  N: ['You see patterns and possibilities and enjoy big-picture thinking.'],
-  T: ['You look for logical, objective solutions to problems.'],
-  F: ['You weigh values and people when you decide.'],
-  J: ['You like clear plans, deadlines and closure.'],
-  P: ['You stay flexible and often juggle several tasks at once.'],
+  I: ['You recharge with quiet time and think before you speak.'],
+  E: ['You recharge around people and think out loud.'],
+  S: ['You trust facts, details and real experience.'],
+  N: ['You love ideas, patterns and big-picture thinking.'],
+  T: ['You decide with logic and fairness.'],
+  F: ['You decide by caring about people and values.'],
+  J: ['You like clear plans, lists and finishing on time.'],
+  P: ['You stay flexible and enjoy keeping your options open.'],
+};
+const DEV_PERSONALITY: Record<string, string[]> = {
+  I: ['Share one idea aloud in class daily.', 'Try a study buddy now and then.'],
+  E: ['Pause and listen fully before replying.', 'Try 15 minutes of solo focus daily.'],
+  S: ['Try one “what if” brainstorm weekly.', 'Link facts into the bigger picture.'],
+  N: ['Write down concrete facts and steps.', 'Finish one idea before the next.'],
+  T: ['Ask how a choice affects people too.', 'Praise teammates when they do well.'],
+  F: ['Look at the facts before deciding.', 'Practise honest, kind feedback.'],
+  J: ['Leave room in plans for surprises.', 'Try one spontaneous activity weekly.'],
+  P: ['Use a simple daily to-do list.', 'Set small deadlines for yourself.'],
 };
 
 const INTEREST_DESC: Record<string, string[]> = {
-  Realistic: ['You enjoy hands-on, practical work with tools, machines or the outdoors.', 'You value things you can see, build and touch.'],
-  Investigative: ['You are analytical and curious and enjoy research and problem-solving.', 'You like working with ideas, data and technology.'],
-  Artistic: ['You are creative, expressive and imaginative.', 'You enjoy design, writing, performance and original work.'],
-  Social: ['You enjoy helping, teaching and working with people.', 'You value cooperation and making a difference.'],
-  Enterprising: ['You like leading, persuading and driving outcomes.', 'You are comfortable taking initiative and managing others.'],
-  Conventional: ['You are organised, detail-oriented and reliable.', 'You enjoy structured work with data and clear procedures.'],
+  Realistic: ['You enjoy hands-on, practical work with tools, machines or the outdoors.', 'You like things you can build and touch.'],
+  Investigative: ['You are curious and love research and problem-solving.', 'You enjoy ideas, data and how things work.'],
+  Artistic: ['You are creative, expressive and imaginative.', 'You enjoy design, writing and original work.'],
+  Social: ['You enjoy helping, teaching and working with people.', 'You value teamwork and making a difference.'],
+  Enterprising: ['You like leading, persuading and getting things done.', 'You enjoy taking charge and starting things.'],
+  Conventional: ['You are organised, careful and reliable.', 'You enjoy clear, structured work with data.'],
 };
 
-const MOTIVATOR_DESC: Record<string, string[]> = {
-  Independence: ['You enjoy working independently and making your own decisions.', 'You dislike too much supervision.'],
-  'Structured work environment': ['You like routine, guidelines and well-defined processes.', 'You dislike frequent unexpected change.'],
-  'Continuous Learning': ['You want to keep upgrading your skills and knowledge.', 'You are drawn to the frontiers of your field.'],
-  Creativity: ['You want room to create and express original ideas.', 'You value imagination at work.'],
-  Adventure: ['You are energised by challenge, novelty and some risk.', 'You enjoy variety over predictability.'],
-  'Social Service': ['You want work that helps people and society.', 'Purpose matters as much as pay.'],
-  'High Paced Environment': ['You thrive on competition, pace and excitement.', 'You enjoy fast-moving, challenging work.'],
-};
-
-const LEARNING_DESC: Record<string, string[]> = {
-  'Auditory Learning': ['You learn best through listening, discussion and talking things through.', 'You interpret meaning from tone, pitch and speech.'],
-  'Visual Learning': ['You learn best through images, diagrams, charts and demonstrations.', 'You remember what you see.'],
-  'Read & Write Learning': ['You learn best by reading and writing notes.', 'Lists, text and definitions work well for you.'],
-  'Kinesthetic Learning': ['You learn best by doing - practicals, models and hands-on practice.', 'You remember what you physically do.'],
-};
 const LEARNING_TIPS: Record<string, string[]> = {
-  'Auditory Learning': ['Study in groups and discuss topics aloud.', 'Record and replay notes; read text out loud.', 'Use audiobooks and recite key facts.'],
-  'Visual Learning': ['Convert notes into diagrams, mind-maps and flowcharts.', 'Use colour, highlighting and visual summaries.', 'Watch demos and videos.'],
-  'Read & Write Learning': ['Rewrite notes in your own words.', 'Make lists, summaries and definitions.', 'Practise with written questions.'],
-  'Kinesthetic Learning': ['Learn by doing experiments, models and projects.', 'Take movement breaks while studying.', 'Use real examples and case studies.'],
-};
-
-const INTELLIGENCE_DESC: Record<string, string[]> = {
-  linguistic: ['Strong with words, reading, writing and explaining.', 'Careers: law, journalism, teaching, content, communication.'],
-  logical: ['Strong with logic, numbers, patterns and analysis.', 'Careers: engineering, data, science, finance, computing.'],
-  spatial: ['Strong at visualising objects, maps and designs.', 'Careers: architecture, design, engineering, surgery.'],
-  kinesthetic: ['Strong with body, movement and hands-on work.', 'Careers: sports, surgery, mechanics, performing arts.'],
-  musical: ['Strong with rhythm, melody and sound.', 'Careers: music, audio, performance, content production.'],
-  interpersonal: ['Strong at understanding and working with people.', 'Careers: management, counselling, sales, HR, teaching.'],
-  intrapersonal: ['Strong self-awareness, reflection and independence.', 'Careers: research, writing, entrepreneurship, psychology.'],
-  naturalist: ['Strong connection to nature and the living world.', 'Careers: biology, agriculture, environment, veterinary.'],
-};
-
-const SKILL_NOTE: Record<string, string[]> = {
-  'Numerical Ability': ['Comfort with numbers and quantitative data.', 'An advantage across many career options.'],
-  'Logical Ability': ['Reasoning and analysing data in different formats.', 'Essential for analytical profiles.'],
-  'Verbal Ability': ['Clear written and spoken communication.', 'Helps you express your message effectively.'],
-  'Administrative & Organising Skills': ['Planning, scheduling and coordinating resources.', 'Keeps work on time and on track.'],
-  'Spatial & Visualisation Ability': ['Exploring, analysing and creating visual solutions.', 'Important in design and technical fields.'],
-  'Leadership & Decision Making': ['Strategic thinking, influence and quick decisions.', 'Helps you lead and adapt.'],
-  'Social & Co-operation Skills': ['Building and maintaining relationships.', 'Valuable in service and people-facing work.'],
-  'Mechanical Abilities': ['Understanding how mechanical things work.', 'Useful in engineering and technical services.'],
+  'Auditory Learning': ['Study in groups and talk topics out loud.', 'Record notes and replay them.', 'Use audiobooks and recite key facts.'],
+  'Visual Learning': ['Turn notes into mind-maps and flowcharts.', 'Use colour and highlighting.', 'Watch demo videos.'],
+  'Read & Write Learning': ['Rewrite notes in your own words.', 'Make lists and summaries.', 'Practise with written questions.'],
+  'Kinesthetic Learning': ['Learn by doing experiments and models.', 'Take movement breaks while studying.', 'Use real examples and projects.'],
 };
