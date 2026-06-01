@@ -97,7 +97,7 @@ export const SECTIONS: SectionMeta[] = [
     title: 'Interests',
     short: 'Interests',
     blurb: 'The kinds of activities and work you are naturally drawn to (the RIASEC interest themes).',
-    scale: 'Rate each statement: No · Not sure · Yes.',
+    scale: 'For each statement, choose Yes or No.',
     instructions: [
       'Read each statement and decide how much it sounds like you.',
       'Answer based on what you genuinely enjoy — not what you think you should pick.',
@@ -136,7 +136,7 @@ export const SECTIONS: SectionMeta[] = [
     title: 'Multiple Intelligences',
     short: 'Intelligences',
     blurb: 'Your natural strengths across the 8 intelligences — words, logic, pictures, body, music, people, self and nature.',
-    scale: 'Rate each statement: No · Not sure · Yes.',
+    scale: 'For each statement, choose Yes or No.',
     instructions: [
       'Decide how strongly each statement applies to you.',
       'These map your strongest kinds of intelligence.',
@@ -189,7 +189,7 @@ const PERSONALITY: Question[] = [
 /* ------------------------------------------------------------------ */
 /* 2. INTERESTS — RIASEC, No / Not sure / Yes, 3 per theme             */
 /* ------------------------------------------------------------------ */
-const YNS: Option[] = [{ label: 'No' }, { label: 'Not sure' }, { label: 'Yes' }];
+const YNS: Option[] = [{ label: 'Yes' }, { label: 'No' }];
 const ynsQ = (id: string, riasec: Riasec, prompt: string): Question =>
   ({ id, section: 'interests', timeSec: 40, riasec, prompt, options: YNS });
 

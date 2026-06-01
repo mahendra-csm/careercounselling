@@ -29,11 +29,18 @@ const INTELLIGENCE_LABELS: Record<Intelligence, string> = {
   naturalist: 'Naturalist (Nature Smart)',
 };
 
-/** Average a set of No/Not sure/Yes answers (0/1/2) to a 0–100 percent. */
+/** Share of Yes answers (binary Yes/No) across a set of questions → 0–100 percent.
+ *  Order-independent: it checks the chosen option's label, not its index. */
+const QUESTION_BY_ID: Record<string, (typeof QUESTIONS)[number]> =
+  Object.fromEntries(QUESTIONS.map((q) => [q.id, q]));
 function ynsPercent(ids: string[], a: AnswerMap): number {
   if (!ids.length) return 0;
-  const raw = ids.reduce((s, id) => s + clampIdx(a[id], 2), 0);
-  return clamp((raw / (ids.length * 2)) * 100);
+  const yes = ids.reduce((s, id) => {
+    const sel = a[id];
+    const label = sel === undefined ? undefined : QUESTION_BY_ID[id]?.options[sel]?.label;
+    return s + (label === 'Yes' ? 1 : 0);
+  }, 0);
+  return clamp((yes / ids.length) * 100);
 }
 function clampIdx(v: number | undefined, max: number) {
   const n = Math.round(Number.isFinite(v as number) ? (v as number) : 0);
