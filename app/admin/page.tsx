@@ -11,6 +11,7 @@ import {
   ADMIN_EMAIL, getSession, signOut, listLeads, markLeadEmailed,
   type FbSession, type LeadRecord,
 } from '@/lib/firebase';
+import { generateReportPdfBlob, blobToBase64 } from '@/lib/client-pdf';
 
 type SendState = 'idle' | 'sending' | 'sent' | 'error';
 
@@ -64,10 +65,14 @@ export default function AdminPage() {
     setSend((s) => ({ ...s, [lead.id]: 'sending' }));
     setRowError((e) => ({ ...e, [lead.id]: '' }));
     try {
-      const res = await fetch('/api/send-report', {
+      // Render the report to a PDF in THIS browser (no server/Chromium needed).
+      const blob = await generateReportPdfBlob(reportId);
+      const pdfBase64 = await blobToBase64(blob);
+      // Hand the finished PDF to a tiny email-only function.
+      const res = await fetch('/api/email-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, name: lead.name, reportId, completion: lead.completion }),
+        body: JSON.stringify({ to, name: lead.name, completion: lead.completion, pdfBase64 }),
       });
       const data = await res.json().catch(() => ({ ok: false }));
       if (!res.ok || !data.ok) throw new Error(data.error || 'Send failed.');
@@ -179,7 +184,7 @@ export default function AdminPage() {
                               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                                 st === 'sent' ? 'bg-green-50 text-success border border-success/30'
                                 : 'bg-red text-white shadow-glow disabled:opacity-60'}`}>
-                              {st === 'sending' ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…</>
+                              {st === 'sending' ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Building & sending…</>
                                 : st === 'sent' ? <><CheckCircle2 className="w-3.5 h-3.5" /> Sent · resend</>
                                 : <><Mail className="w-3.5 h-3.5" /> Send report</>}
                             </button>

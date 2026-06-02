@@ -1,24 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
-import { renderReportPdf } from '@/lib/report-pdf';
 
 /**
- * Renders the student's Career Discovery Report to a PDF and emails it as an
- * attachment from your mailbox over SMTP (e.g. Hostinger) to the recipient.
+ * Emails a ready-made report PDF (generated in the browser) as an attachment
+ * over SMTP. No rendering happens here, so it returns in ~1-3s — well within
+ * the free-plan serverless time limit.
  *
- * Config (set in .env.local locally, and in the hosting env for production):
- *   SMTP_HOST          – e.g. smtp.hostinger.com   (required)
- *   SMTP_PORT          – 465 (SSL) or 587 (TLS). Defaults to 465.
- *   SMTP_USER          – full mailbox address, e.g. support@onegrasp.com (required)
- *   SMTP_PASS          – mailbox password (required)
- *   SMTP_SECURE        – "true"/"false". Defaults to true when port is 465.
- *   REPORT_FROM_EMAIL  – optional, defaults to "OneGrasp <SMTP_USER>"
- *
- * Needs the Node.js runtime (nodemailer + headless Chrome). PDF rendering can
- * take a while on a cold start, so allow a longer duration.
+ * Config (set in the Vercel project env + local .env.local):
+ *   SMTP_HOST, SMTP_PORT (465), SMTP_USER, SMTP_PASS, SMTP_SECURE
+ *   REPORT_FROM_EMAIL (optional)
  */
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 30;
 
 const HOST = process.env.SMTP_HOST;
 const PORT = Number(process.env.SMTP_PORT || 465);
@@ -41,36 +34,22 @@ export async function POST(req: NextRequest) {
 
   const to = String(body.to ?? '').trim();
   const name = String(body.name ?? '').trim();
-  const reportId = String(body.reportId ?? '').trim();
   const completion = body.completion != null ? String(body.completion) : '';
+  const pdfBase64 = String(body.pdfBase64 ?? '');
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
     return NextResponse.json({ ok: false, error: 'A valid recipient email is required.' }, { status: 400 });
   }
-  if (!reportId) {
-    return NextResponse.json({ ok: false, error: 'Missing report id.' }, { status: 400 });
+  if (!pdfBase64 || pdfBase64.length < 1000) {
+    return NextResponse.json({ ok: false, error: 'Missing or empty PDF.' }, { status: 400 });
   }
   if (!HOST || !USER || !PASS) {
     return NextResponse.json(
-      { ok: false, error: 'Email sending is not configured yet (SMTP_HOST / SMTP_USER / SMTP_PASS are missing).' },
+      { ok: false, error: 'Email sending is not configured (SMTP_HOST / SMTP_USER / SMTP_PASS are missing).' },
       { status: 503 }
     );
   }
 
-  // Build the report URL on the same origin this request came from.
-  const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
-  const reportUrl = `${origin}/report/view?id=${encodeURIComponent(reportId)}`;
-
-  // 1) Render the report to a PDF.
-  let pdf: Buffer;
-  try {
-    pdf = await renderReportPdf(reportUrl);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to render the report PDF.';
-    return NextResponse.json({ ok: false, error: `Could not generate the report PDF: ${message}` }, { status: 500 });
-  }
-
-  // 2) Email it as an attachment.
   const greeting = name ? `Hi ${esc(name)},` : 'Hi,';
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#16243B">
@@ -80,7 +59,7 @@ export async function POST(req: NextRequest) {
       </div>
       <div style="padding:22px 4px">
         <p>${greeting}</p>
-        <p>Congratulations on completing your career assessment${completion ? ` (<b>${esc(completion)}%</b> answered)` : ''}. Your full personalised report is <b>attached as a PDF</b> to this email.</p>
+        <p>Congratulations on completing your career assessment${completion ? ` (<b>${esc(completion)}%</b> answered)` : ''}. Your full personalised report is <b>attached as a PDF</b>.</p>
         <p>Open it to explore your strengths, interests, top career domains and recommended next steps.</p>
         <p style="font-size:12px;color:#6F7E94;margin-top:18px">Questions? Reply to this email or reach us at support@onegrasp.com / +91 89777 60443.</p>
       </div>
@@ -103,7 +82,7 @@ export async function POST(req: NextRequest) {
       attachments: [
         {
           filename: `OneGrasp-Career-Report${name ? '-' + name.replace(/[^a-zA-Z0-9]+/g, '-') : ''}.pdf`,
-          content: pdf,
+          content: Buffer.from(pdfBase64, 'base64'),
           contentType: 'application/pdf',
         },
       ],
