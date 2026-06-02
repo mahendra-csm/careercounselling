@@ -54,15 +54,15 @@ export async function generateReportPdfBlob(
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
     onProgress?.(0, pages.length);
     for (let i = 0; i < pages.length; i++) {
-      // scale 1.5 keeps A4 sharp enough (~150dpi) while ~2x faster than scale 2.
+      // scale 1.25 (~120dpi) keeps A4 readable while rendering markedly faster.
       const canvas = await html2canvas(pages[i], {
-        scale: 1.5,
+        scale: 1.25,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
         imageTimeout: 0,
       });
-      const img = canvas.toDataURL('image/jpeg', 0.82);
+      const img = canvas.toDataURL('image/jpeg', 0.8);
       if (i > 0) pdf.addPage();
       pdf.addImage(img, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
       onProgress?.(i + 1, pages.length);
