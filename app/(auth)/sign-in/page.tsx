@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
-import { signIn } from '@/lib/firebase';
+import { signIn, ADMIN_EMAIL } from '@/lib/firebase';
 import Logo from '@/components/brand/Logo';
 
 const schema = z.object({
@@ -30,8 +30,8 @@ export default function SignInPage() {
   const onSubmit = async (data: FormData) => {
     setError('');
     try {
-      await signIn(data.email, data.password);
-      router.push('/dashboard');
+      const sess = await signIn(data.email, data.password);
+      router.push(sess.email.toLowerCase() === ADMIN_EMAIL ? '/admin' : '/dashboard');
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "That email or password doesn't match — try again?");

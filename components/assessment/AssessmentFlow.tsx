@@ -286,32 +286,22 @@ export default function AssessmentFlow() {
     }
   };
 
-  // Saves the lead and emails the report to the chosen recipient.
+  // Saves the student's lead to Firebase. The report is NOT emailed here — the
+  // OneGrasp team reviews leads in the admin dashboard and sends each report
+  // manually with one click.
   const sendReport = async () => {
     setSendError('');
     const recipient = recipientEmail.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) { setSendError('Enter a valid recipient email.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) { setSendError('Enter a valid email.'); return; }
     if (!klass) { setSendError('Please select your class.'); return; }
     if (!rating) { setSendError('Please rate your exam out of 10.'); return; }
     setSending(true);
-
-    // 1) Persist the lead (never blocks the user).
-    await persistLead();
-
-    // 2) Render + email the report PDF.
     try {
-      const res = await fetch('/api/send-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: recipient, name: name.trim(), reportId, completion: completionPct,
-        }),
-      });
-      const data = await res.json().catch(() => ({ ok: false }));
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Could not send the report email.');
+      const ok = await persistLead();
+      if (!ok) throw new Error('Could not save your details. Please try again.');
       setSent(true);
     } catch (err) {
-      setSendError(err instanceof Error ? err.message : 'Could not send the report email.');
+      setSendError(err instanceof Error ? err.message : 'Could not save your details. Please try again.');
     } finally {
       setSending(false);
     }
@@ -555,13 +545,13 @@ export default function AssessmentFlow() {
                 </div>
 
                 <div className="mt-3">
-                  <label className="text-xs font-semibold text-ink-2 block mb-1">Send report to</label>
+                  <label className="text-xs font-semibold text-ink-2 block mb-1">Email to receive your report</label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-ink-4 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} type="email" placeholder="recipient@email.com"
+                    <input value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} type="email" placeholder="you@email.com"
                       className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
                   </div>
-                  <p className="text-[11px] text-ink-4 mt-1">We&apos;ll email your report here from support@onegrasp.com.</p>
+                  <p className="text-[11px] text-ink-4 mt-1">Our counsellors will review and email your report here from support@onegrasp.com.</p>
                 </div>
 
                 {sendError && (
@@ -572,9 +562,8 @@ export default function AssessmentFlow() {
 
                 <button onClick={sendReport} disabled={sending || !recipientValid || !klass || !rating}
                   className="mt-5 w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow disabled:opacity-50 disabled:shadow-none">
-                  {sending ? (<><Loader2 className="w-4 h-4 animate-spin" /> Preparing &amp; emailing your report…</>) : (<><Mail className="w-4 h-4" /> Send my report</>)}
+                  {sending ? (<><Loader2 className="w-4 h-4 animate-spin" /> Saving your details…</>) : (<><CheckCircle2 className="w-4 h-4" /> Submit &amp; finish</>)}
                 </button>
-                <p className="mt-2 text-center text-[11px] text-ink-4">This can take a few seconds while we build your PDF.</p>
               </div>
             </>
           ) : (
@@ -582,13 +571,13 @@ export default function AssessmentFlow() {
               <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="w-9 h-9 text-success" />
               </div>
-              <h2 className="text-2xl font-extrabold text-ink mb-1">Report sent! 📩</h2>
+              <h2 className="text-2xl font-extrabold text-ink mb-1">All done! 🎉</h2>
               <p className="text-sm text-ink-3 mb-6">
-                Your Career Discovery Report is on its way to <b className="text-ink">{recipientEmail}</b>. Check the inbox (and spam) in a minute.
+                Thanks{name ? `, ${name.split(' ')[0]}` : ''}! Your details are saved. Our team will review your assessment and email your Career Discovery Report to <b className="text-ink">{recipientEmail}</b> shortly.
               </p>
               <button onClick={() => router.push(`/report/view?id=${reportId}`)}
                 className="w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow">
-                View your report <ChevronRight className="w-4 h-4" />
+                View your report now <ChevronRight className="w-4 h-4" />
               </button>
               <Link href="/dashboard" className="mt-2 inline-block w-full text-center text-sm font-semibold text-ink-3 hover:text-ink">
                 Go to dashboard

@@ -17,6 +17,9 @@ const IDENTITY = 'https://identitytoolkit.googleapis.com/v1/accounts';
 const FIRESTORE = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents`;
 const SESSION_KEY = 'onegrasp:firebase-session';
 
+/** Only this account can see the admin dashboard / read all leads. */
+export const ADMIN_EMAIL = 'admin@onegrasp.com';
+
 export interface FbSession {
   idToken: string;
   refreshToken: string;
@@ -162,6 +165,67 @@ export async function saveLead(
         }),
       }),
     });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export interface LeadRecord {
+  id: string;
+  createTime?: string;
+  [key: string]: string | number | boolean | undefined;
+}
+
+/** Decode a Firestore REST document's fields into plain JS values. */
+function decodeFields(fields: Record<string, Record<string, unknown>> = {}): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if ('stringValue' in v) out[k] = v.stringValue as string;
+    else if ('integerValue' in v) out[k] = Number(v.integerValue);
+    else if ('doubleValue' in v) out[k] = Number(v.doubleValue);
+    else if ('booleanValue' in v) out[k] = Boolean(v.booleanValue);
+  }
+  return out;
+}
+
+/** Admin only: list every lead. Firestore rules restrict reads to ADMIN_EMAIL. */
+export async function listLeads(session: FbSession | null): Promise<LeadRecord[]> {
+  if (!session) return [];
+  const leads: LeadRecord[] = [];
+  let pageToken = '';
+  try {
+    do {
+      const url = `${FIRESTORE}/leads?pageSize=300&orderBy=createdAt%20desc${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${session.idToken}` } });
+      if (!res.ok) break;
+      const data = await res.json();
+      for (const doc of data.documents ?? []) {
+        const id = String(doc.name).split('/').pop() as string;
+        leads.push({ id, createTime: doc.createTime, ...decodeFields(doc.fields) });
+      }
+      pageToken = data.nextPageToken ?? '';
+    } while (pageToken);
+  } catch {
+    /* return whatever we collected */
+  }
+  return leads;
+}
+
+/** Admin only: mark a lead's report as emailed. */
+export async function markLeadEmailed(id: string, session: FbSession | null): Promise<boolean> {
+  if (!session) return false;
+  try {
+    const res = await fetch(
+      `${FIRESTORE}/leads/${id}?updateMask.fieldPaths=emailed&updateMask.fieldPaths=emailedAt&key=${firebaseConfig.apiKey}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.idToken}` },
+        body: JSON.stringify({
+          fields: { emailed: { booleanValue: true }, emailedAt: { stringValue: new Date().toISOString() } },
+        }),
+      }
+    );
     return res.ok;
   } catch {
     return false;
