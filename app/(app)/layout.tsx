@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   Search,
@@ -17,8 +17,9 @@ import {
   Menu,
   ChevronRight,
 } from 'lucide-react';
-import { signOut } from '@/lib/firebase';
+import { signOut, getSession } from '@/lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Loader2 } from 'lucide-react';
 import Logo from '@/components/brand/Logo';
 
 const NAV = [
@@ -37,6 +38,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Require login for the whole dashboard area.
+  useEffect(() => {
+    if (!getSession()) {
+      router.replace('/sign-in');
+      return;
+    }
+    setAuthChecked(true);
+  }, [router]);
+
+  if (!authChecked) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-bg">
+        <Loader2 className="w-7 h-7 text-red animate-spin" />
+      </div>
+    );
+  }
 
   const handleSignOut = async () => {
     signOut();

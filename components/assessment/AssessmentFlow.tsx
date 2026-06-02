@@ -206,59 +206,47 @@ export default function AssessmentFlow() {
     setError('');
     const step = (msg: string, pct: number) => { setStatusMsg(msg); setProgress(pct); };
     try {
-      step('Scoring your answers…', 25);
-      const profile = scoreAssessment(answers, name);
       const id = makeReportId();
-
-      step('Building your personalised report…', 55);
-      saveLocalReport(id, profile);
-
-      // Authentication + cloud save are enhancements. The report is already
-      // saved locally, so anything that fails here must NOT block the redirect.
-      step('Saving your report…', 80);
-      try {
-        const emailValue = email.trim();
-        const passwordValue = password.trim();
-        let session = getSession();
-
-        if (!session && emailValue && passwordValue) {
-          try {
-            // Create the account from the credentials entered before the exam —
-            // these become the student's login. (Sign-up first: newer Firebase
-            // projects return a generic INVALID_LOGIN_CREDENTIALS for unknown
-            // emails, so we can't rely on EMAIL_NOT_FOUND from a sign-in attempt.)
-            session = await signUp(emailValue, passwordValue, name.trim());
-          } catch (err) {
-            const code = (err as { code?: string } | null)?.code ?? '';
-            if (code.includes('EMAIL_EXISTS')) {
-              // Returning student — sign in with the same credentials instead.
-              try {
-                session = await signIn(emailValue, passwordValue);
-              } catch {
-                // Wrong password for an existing email — report stays local only.
-              }
-            }
-            // Any other failure (e.g. email/password sign-in disabled in Firebase)
-            // is non-fatal — the report is already saved locally.
-          }
-        }
-
-        if (session) {
-          const { saveReport } = await import('@/lib/firebase');
-          await saveReport(id, profile, session);
-        }
-      } catch {
-        // Non-fatal: fall through to the local report.
-      }
-
-      // Show the completion + lead-capture screen instead of jumping straight
-      // to the report. The student confirms their details, rates the exam, and
-      // we email the report to the recipient.
-      step('Report ready!', 100);
       const pct = Math.round((Object.keys(answers).length / total) * 100);
       setReportId(id);
       setCompletionPct(pct);
       setRecipientEmail(email.trim());
+
+      // A career report is ONLY generated when at least 70% of the questions
+      // were attempted. Below that, the completion screen explains why.
+      if (pct >= 70) {
+        step('Scoring your answers…', 30);
+        const profile = scoreAssessment(answers, name);
+
+        step('Building your personalised report…', 60);
+        saveLocalReport(id, profile);
+
+        // Cloud-save is an enhancement — failures must not block the student.
+        step('Saving your report…', 85);
+        try {
+          const emailValue = email.trim();
+          const passwordValue = password.trim();
+          let session = getSession();
+          if (!session && emailValue && passwordValue) {
+            try {
+              session = await signUp(emailValue, passwordValue, name.trim());
+            } catch (err) {
+              const code = (err as { code?: string } | null)?.code ?? '';
+              if (code.includes('EMAIL_EXISTS')) {
+                try { session = await signIn(emailValue, passwordValue); } catch { /* wrong pw */ }
+              }
+            }
+          }
+          if (session) {
+            const { saveReport } = await import('@/lib/firebase');
+            await saveReport(id, profile, session);
+          }
+        } catch {
+          // Non-fatal: fall through to the local report.
+        }
+      }
+
+      step('Done!', 100);
       setSubmitting(false);
       setDone(true);
     } catch (err) {
@@ -493,7 +481,22 @@ export default function AssessmentFlow() {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-10">
         <div className="max-w-lg w-full bg-white rounded-2xl border border-line shadow-md p-6 sm:p-8">
-          {!sent ? (
+          {completionPct < 70 ? (
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full bg-yellow-50 flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-9 h-9 text-warning" />
+              </div>
+              <h2 className="text-2xl font-extrabold text-ink mb-1">Almost there</h2>
+              <p className="text-sm text-ink-3 mb-2">
+                You attempted only <b className="text-ink">{completionPct}%</b> of the questions. A career report is generated only when you attempt at least <b className="text-ink">70%</b>.
+              </p>
+              <div className="mt-2 mb-4 h-2 w-full rounded-full bg-line-2 overflow-hidden">
+                <div className="h-full rounded-full bg-warning" style={{ width: `${completionPct}%` }} />
+              </div>
+              <p className="text-xs text-ink-4 mb-5">Please retake the assessment and attempt at least 70% of the questions to receive your report.</p>
+              <Link href="/" className="w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow">Back to home</Link>
+            </div>
+          ) : !sent ? (
             <>
               <div className="text-center">
                 <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
@@ -857,6 +860,7 @@ export default function AssessmentFlow() {
                 <div className="rounded-xl bg-bg border border-line p-3.5">
                   <p className="text-[12px] font-bold text-ink mb-1.5 flex items-center gap-1.5"><ListChecks className="w-4 h-4 text-red" /> How it works</p>
                   <ul className="text-[12px] text-ink-2 space-y-1 list-disc pl-4">
+                    <li>You must attempt at least <b>70% of the questions</b> to receive your career report.</li>
                     <li>Each question has its own timer. When it ends, you move on automatically — <b>a timed-out question is locked</b>, so don&apos;t leave it blank.</li>
                     <li>Sections 1–5 have <b>no right or wrong</b> answers. Section 6 (Analytical) <b>does</b> — read carefully.</li>
                     <li>Use the palette to jump between questions and mark ones for review.</li>
