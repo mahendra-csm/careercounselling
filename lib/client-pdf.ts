@@ -21,13 +21,16 @@ function waitFor(test: () => boolean, timeoutMs: number, intervalMs = 200): Prom
   });
 }
 
-export async function generateReportPdfBlob(reportId: string): Promise<Blob> {
+export async function generateReportPdfBlob(
+  reportId: string,
+  onProgress?: (done: number, total: number) => void
+): Promise<Blob> {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.left = '-10000px';
   iframe.style.top = '0';
-  iframe.style.width = '860px';
-  iframe.style.height = '1200px';
+  iframe.style.width = '820px';
+  iframe.style.height = '1180px';
   iframe.style.border = '0';
   iframe.src = `/report/view?id=${encodeURIComponent(reportId)}`;
   document.body.appendChild(iframe);
@@ -35,33 +38,36 @@ export async function generateReportPdfBlob(reportId: string): Promise<Blob> {
   try {
     await new Promise<void>((resolve) => {
       iframe.onload = () => resolve();
-      setTimeout(resolve, 10000);
+      setTimeout(resolve, 8000);
     });
     const doc = iframe.contentWindow?.document;
     if (!doc) throw new Error('Could not access the report frame.');
 
     // The report renders asynchronously (loads from Firestore).
     await waitFor(() => doc.querySelectorAll('.a4-page').length > 0, 20000);
-    // let fonts / SVGs settle
     try { await (doc as Document & { fonts?: { ready?: Promise<unknown> } }).fonts?.ready; } catch { /* noop */ }
-    await new Promise((r) => setTimeout(r, 900));
+    await new Promise((r) => setTimeout(r, 350));
 
     const pages = Array.from(doc.querySelectorAll('.a4-page')) as HTMLElement[];
     if (pages.length === 0) throw new Error('The report has no pages to export.');
 
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+    onProgress?.(0, pages.length);
     for (let i = 0; i < pages.length; i++) {
+      // scale 1.5 keeps A4 sharp enough (~150dpi) while ~2x faster than scale 2.
       const canvas = await html2canvas(pages[i], {
-        scale: 2,
+        scale: 1.5,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
-        windowWidth: pages[i].scrollWidth,
-        windowHeight: pages[i].scrollHeight,
+        imageTimeout: 0,
       });
-      const img = canvas.toDataURL('image/jpeg', 0.9);
+      const img = canvas.toDataURL('image/jpeg', 0.82);
       if (i > 0) pdf.addPage();
       pdf.addImage(img, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+      onProgress?.(i + 1, pages.length);
+      // yield to the browser so the progress UI can paint
+      await new Promise((r) => setTimeout(r, 0));
     }
     return pdf.output('blob');
   } finally {

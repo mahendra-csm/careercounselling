@@ -23,6 +23,7 @@ export default function AdminPage() {
   const [query, setQuery] = useState('');
   const [send, setSend] = useState<Record<string, SendState>>({});
   const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [progress, setProgress] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const s = getSession();
@@ -66,7 +67,9 @@ export default function AdminPage() {
     setRowError((e) => ({ ...e, [lead.id]: '' }));
     try {
       // Render the report to a PDF in THIS browser (no server/Chromium needed).
-      const blob = await generateReportPdfBlob(reportId);
+      const blob = await generateReportPdfBlob(reportId, (done, total) =>
+        setProgress((p) => ({ ...p, [lead.id]: `${done}/${total}` }))
+      );
       const pdfBase64 = await blobToBase64(blob);
       // Hand the finished PDF to a tiny email-only function.
       const res = await fetch('/api/email-pdf', {
@@ -184,7 +187,7 @@ export default function AdminPage() {
                               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                                 st === 'sent' ? 'bg-green-50 text-success border border-success/30'
                                 : 'bg-red text-white shadow-glow disabled:opacity-60'}`}>
-                              {st === 'sending' ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Building & sending…</>
+                              {st === 'sending' ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Building {progress[l.id] ?? ''}…</>
                                 : st === 'sent' ? <><CheckCircle2 className="w-3.5 h-3.5" /> Sent · resend</>
                                 : <><Mail className="w-3.5 h-3.5" /> Send report</>}
                             </button>
