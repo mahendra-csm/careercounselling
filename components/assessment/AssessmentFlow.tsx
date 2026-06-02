@@ -20,7 +20,7 @@ import {
 import { EXAM_LANGS, localizeQuestion, type ExamLang } from '@/lib/assessment-i18n';
 import { scoreAssessment } from '@/lib/assessment-engine';
 import { makeReportId, saveLocalReport } from '@/lib/report-store';
-import { signUp, signIn, getSession } from '@/lib/firebase';
+import { signUp, signIn, getSession, signOut } from '@/lib/firebase';
 
 type StageKey = 'no-idea' | 'confused' | 'exploring' | 'sure';
 
@@ -299,6 +299,8 @@ export default function AssessmentFlow() {
     try {
       const ok = await persistLead();
       if (!ok) throw new Error('Could not save your details. Please try again.');
+      // Require a fresh login to view the report on the dashboard.
+      signOut();
       setSent(true);
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'Could not save your details. Please try again.');
@@ -572,16 +574,21 @@ export default function AssessmentFlow() {
                 <CheckCircle2 className="w-9 h-9 text-success" />
               </div>
               <h2 className="text-2xl font-extrabold text-ink mb-1">All done! 🎉</h2>
-              <p className="text-sm text-ink-3 mb-6">
-                Thanks{name ? `, ${name.split(' ')[0]}` : ''}! Your details are saved. Our team will review your assessment and email your Career Discovery Report to <b className="text-ink">{recipientEmail}</b> shortly.
+              <p className="text-sm text-ink-3 mb-4">
+                Thanks{name ? `, ${name.split(' ')[0]}` : ''}! Your assessment is submitted and our team will email your Career Discovery Report to <b className="text-ink">{recipientEmail}</b> shortly.
               </p>
-              <button onClick={() => router.push(`/report/view?id=${reportId}`)}
+              <div className="text-left bg-bg border border-line rounded-xl p-4 mb-5">
+                <p className="text-sm font-bold text-ink mb-2 flex items-center gap-1.5"><KeyRound className="w-4 h-4 text-red" /> To view your report:</p>
+                <ol className="text-sm text-ink-2 space-y-1.5 list-decimal pl-5">
+                  <li>Go to the <b>Sign in</b> page.</li>
+                  <li>Log in with your <b>email</b> (<span className="text-ink">{email}</span>) and the <b>password you created</b>.</li>
+                  <li>Open your report from your <b>dashboard</b>.</li>
+                </ol>
+              </div>
+              <button onClick={() => router.push('/sign-in')}
                 className="w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow">
-                View your report now <ChevronRight className="w-4 h-4" />
+                Sign in to view your report <ChevronRight className="w-4 h-4" />
               </button>
-              <Link href="/dashboard" className="mt-2 inline-block w-full text-center text-sm font-semibold text-ink-3 hover:text-ink">
-                Go to dashboard
-              </Link>
             </div>
           )}
         </div>
