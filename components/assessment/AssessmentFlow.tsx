@@ -57,6 +57,8 @@ const COUNTRY_CODES: { flag: string; dial: string; iso: string }[] = [
   { flag: '🇳🇵', dial: '+977', iso: 'NP' },
 ];
 
+const CLASS_OPTIONS = ['Below Class 8', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12', 'Graduate', 'Other'];
+
 function fmt(sec: number) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
@@ -112,6 +114,17 @@ export default function AssessmentFlow() {
   // account creation (done up front, before the exam)
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState('');
+
+  // completion + lead capture (after the exam)
+  const [done, setDone] = useState(false);
+  const [reportId, setReportId] = useState('');
+  const [completionPct, setCompletionPct] = useState(0);
+  const [klass, setKlass] = useState('');
+  const [rating, setRating] = useState(0);
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [sendError, setSendError] = useState('');
 
   const milestoneLabel = MILESTONES.find((m) => m.id === milestone)?.label ?? '';
   const doingOptions = milestoneLabel
@@ -238,14 +251,65 @@ export default function AssessmentFlow() {
         // Non-fatal: fall through to the local report.
       }
 
-      step('Report ready — redirecting…', 100);
-      router.push(`/report/view?id=${id}`);
+      // Show the completion + lead-capture screen instead of jumping straight
+      // to the report. The student confirms their details, rates the exam, and
+      // we email the report to the recipient.
+      step('Report ready!', 100);
+      const pct = Math.round((Object.keys(answers).length / total) * 100);
+      setReportId(id);
+      setCompletionPct(pct);
+      setRecipientEmail(email.trim());
+      setSubmitting(false);
+      setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
       // Keep the overlay visible so the error is actually shown, instead of
       // silently dropping the user back onto the last question.
     }
-  }, [answers, name, password, email, router]);
+  }, [answers, name, password, email, router, total]);
+
+  // Stores the full student lead in Firestore and emails the report to the
+  // chosen recipient (from support@onegrasp.com).
+  const sendReport = async () => {
+    setSendError('');
+    const recipient = recipientEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) { setSendError('Enter a valid recipient email.'); return; }
+    if (!klass) { setSendError('Please select your class.'); return; }
+    if (!rating) { setSendError('Please rate your exam out of 10.'); return; }
+    setSending(true);
+    const session = getSession();
+    const fullPhone = phone.trim() ? `${countryCode} ${phone.trim()}` : '';
+    const reportUrl = `${window.location.origin}/report/view?id=${reportId}`;
+
+    // 1) Persist the lead (best-effort — never blocks the user).
+    try {
+      const { saveLead } = await import('@/lib/firebase');
+      await saveLead({
+        name: name.trim(), email: email.trim(), phone: fullPhone, class: klass,
+        rating, recipientEmail: recipient, reportId, completion: completionPct,
+        milestone, stage, location, age,
+      }, session);
+    } catch { /* non-fatal */ }
+
+    // 2) Email the report.
+    try {
+      const res = await fetch('/api/send-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: recipient, name: name.trim(), email: email.trim(), phone: fullPhone,
+          class: klass, rating, completion: completionPct, reportUrl,
+        }),
+      });
+      const data = await res.json().catch(() => ({ ok: false }));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Could not send the report email.');
+      setSent(true);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Could not send the report email.');
+    } finally {
+      setSending(false);
+    }
+  };
 
   // navigate to an overall question index; show a section intro the first time
   // we enter a new section.
@@ -420,6 +484,114 @@ export default function AssessmentFlow() {
           <Link href="/dashboard" className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-3 rounded-xl shadow-glow">
             Back to Dashboard
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- completion + lead capture ---------- */
+  if (done) {
+    const recipientValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim());
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-10">
+        <div className="max-w-lg w-full bg-white rounded-2xl border border-line shadow-md p-6 sm:p-8">
+          {!sent ? (
+            <>
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="w-9 h-9 text-success" />
+                </div>
+                <h2 className="text-2xl font-extrabold text-ink mb-1">
+                  Well done{name ? `, ${name.split(' ')[0]}` : ''}! 🎉
+                </h2>
+                <p className="text-sm text-ink-3">
+                  You&apos;ve successfully completed the assessment — <b className="text-ink">{completionPct}% completed</b>.
+                </p>
+                <div className="mt-3 h-2 w-full rounded-full bg-line-2 overflow-hidden">
+                  <div className="h-full rounded-full bg-success" style={{ width: `${completionPct}%` }} />
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <p className="text-sm font-bold text-ink mb-3">Confirm your details to receive your report</p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-ink-2 block mb-1">Name</label>
+                    <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-2 block mb-1">Phone</label>
+                    <input value={phone ? `${countryCode} ${phone}` : ''} readOnly className="w-full px-3 py-2.5 rounded-xl border border-line bg-line-2/40 text-sm text-ink-3" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-2 block mb-1">Email</label>
+                    <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="w-full px-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-2 block mb-1">Class</label>
+                    <select value={klass} onChange={(e) => setKlass(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red">
+                      <option value="">Select your class</option>
+                      {CLASS_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <label className="text-xs font-semibold text-ink-2 block mb-1.5">How would you rate your exam experience? <span className="text-ink-4 font-normal">(1–10)</span></label>
+                  <div className="grid grid-cols-10 gap-1.5">
+                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                      <button key={n} type="button" onClick={() => setRating(n)}
+                        className={`h-9 rounded-lg text-sm font-bold transition-all ${rating === n ? 'bg-red text-white' : 'bg-bg border border-line text-ink-3 hover:border-red-line'}`}>
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <label className="text-xs font-semibold text-ink-2 block mb-1">Send report to</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-ink-4 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} type="email" placeholder="recipient@email.com"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+                  </div>
+                  <p className="text-[11px] text-ink-4 mt-1">We&apos;ll email your report here from support@onegrasp.com.</p>
+                </div>
+
+                {sendError && (
+                  <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-line bg-red-soft p-3 text-sm text-red">
+                    <AlertCircle className="w-4 h-4 mt-px shrink-0" /> <span>{sendError}</span>
+                  </div>
+                )}
+
+                <button onClick={sendReport} disabled={sending || !recipientValid || !klass || !rating}
+                  className="mt-5 w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow disabled:opacity-50 disabled:shadow-none">
+                  {sending ? (<><Loader2 className="w-4 h-4 animate-spin" /> Sending your report…</>) : (<><Mail className="w-4 h-4" /> Send my report</>)}
+                </button>
+                <button onClick={() => router.push(`/report/view?id=${reportId}`)}
+                  className="mt-2 w-full text-center text-sm font-semibold text-ink-3 hover:text-ink">
+                  View report now without emailing
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="w-9 h-9 text-success" />
+              </div>
+              <h2 className="text-2xl font-extrabold text-ink mb-1">Report sent! 📩</h2>
+              <p className="text-sm text-ink-3 mb-6">
+                Your Career Discovery Report is on its way to <b className="text-ink">{recipientEmail}</b>. Check the inbox (and spam) in a minute.
+              </p>
+              <button onClick={() => router.push(`/report/view?id=${reportId}`)}
+                className="w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow">
+                View your report <ChevronRight className="w-4 h-4" />
+              </button>
+              <Link href="/dashboard" className="mt-2 inline-block w-full text-center text-sm font-semibold text-ink-3 hover:text-ink">
+                Go to dashboard
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     );

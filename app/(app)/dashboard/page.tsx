@@ -85,9 +85,9 @@ export default function DashboardPage() {
                 <Link href={reportHref} className="inline-flex items-center gap-2 bg-red text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-glow">
                   View career report <ArrowRight className="w-4 h-4" />
                 </Link>
-                <Link href="/assessment" className="inline-flex items-center gap-2 border border-line text-ink-2 text-sm font-medium px-4 py-2.5 rounded-xl hover:bg-bg">
-                  Retake assessment
-                </Link>
+                <a href="https://wa.me/918977760443" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 border border-line text-ink-2 text-sm font-medium px-4 py-2.5 rounded-xl hover:bg-bg">
+                  <MessageCircle className="w-4 h-4 text-success" /> Talk to a counsellor
+                </a>
               </div>
             ) : (
               <Link href="/assessment" className="inline-flex items-center gap-2 bg-red text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-glow">
@@ -132,9 +132,15 @@ export default function DashboardPage() {
         className="rounded-2xl p-6 mb-8 text-center text-white relative overflow-hidden"
         style={{ background: 'linear-gradient(120deg, #3b0764, #7e22ce, #E0242E)' }}>
         <h2 className="text-2xl font-extrabold mb-3">Have a question about your future?</h2>
-        <Link href="/assessment" className="inline-flex items-center gap-2 bg-white text-red font-bold px-6 py-3 rounded-full shadow-lg">
-          <Sparkles className="w-4 h-4" /> Ask anything
-        </Link>
+        {hasReport ? (
+          <a href="https://wa.me/918977760443" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-white text-red font-bold px-6 py-3 rounded-full shadow-lg">
+            <Sparkles className="w-4 h-4" /> Ask a counsellor
+          </a>
+        ) : (
+          <Link href="/assessment" className="inline-flex items-center gap-2 bg-white text-red font-bold px-6 py-3 rounded-full shadow-lg">
+            <Sparkles className="w-4 h-4" /> Start your assessment
+          </Link>
+        )}
       </motion.div>
 
       {/* Module grid */}

@@ -143,6 +143,31 @@ export async function saveReport(id: string, profile: unknown, session: FbSessio
   }
 }
 
+/** Save a student lead/record (all collected info + report pointer). Best-effort. */
+export async function saveLead(
+  lead: Record<string, string | number>,
+  session: FbSession | null
+): Promise<boolean> {
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (session) headers.Authorization = `Bearer ${session.idToken}`;
+    const res = await fetch(`${FIRESTORE}/leads?key=${firebaseConfig.apiKey}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        fields: encodeFields({
+          ...lead,
+          uid: session?.uid ?? 'anon',
+          createdAt: new Date().toISOString(),
+        }),
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Read a report by id from Firestore. Returns parsed profile or null. */
 export async function loadReport(id: string, session: FbSession | null): Promise<any | null> {
   try {
