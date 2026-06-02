@@ -14,7 +14,7 @@ const nextConfig = {
     ],
   },
   experimental: {
-    serverComponentsExternalPackages: ['@react-pdf/renderer'],
+    serverComponentsExternalPackages: ['@react-pdf/renderer', 'puppeteer', 'puppeteer-core', '@sparticuz/chromium'],
   },
 };
 

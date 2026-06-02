@@ -294,20 +294,17 @@ export default function AssessmentFlow() {
     if (!klass) { setSendError('Please select your class.'); return; }
     if (!rating) { setSendError('Please rate your exam out of 10.'); return; }
     setSending(true);
-    const reportUrl = `${window.location.origin}/report/view?id=${reportId}`;
-    const fullPhone = phone.trim() ? `${countryCode} ${phone.trim()}` : '';
 
     // 1) Persist the lead (never blocks the user).
     await persistLead();
 
-    // 2) Email the report.
+    // 2) Render + email the report PDF.
     try {
       const res = await fetch('/api/send-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: recipient, name: name.trim(), email: email.trim(), phone: fullPhone,
-          class: klass, rating, completion: completionPct, reportUrl,
+          to: recipient, name: name.trim(), reportId, completion: completionPct,
         }),
       });
       const data = await res.json().catch(() => ({ ok: false }));
@@ -575,12 +572,9 @@ export default function AssessmentFlow() {
 
                 <button onClick={sendReport} disabled={sending || !recipientValid || !klass || !rating}
                   className="mt-5 w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow disabled:opacity-50 disabled:shadow-none">
-                  {sending ? (<><Loader2 className="w-4 h-4 animate-spin" /> Sending your report…</>) : (<><Mail className="w-4 h-4" /> Send my report</>)}
+                  {sending ? (<><Loader2 className="w-4 h-4 animate-spin" /> Preparing &amp; emailing your report…</>) : (<><Mail className="w-4 h-4" /> Send my report</>)}
                 </button>
-                <button onClick={async () => { await persistLead(); router.push(`/report/view?id=${reportId}`); }}
-                  className="mt-2 w-full text-center text-sm font-semibold text-ink-3 hover:text-ink">
-                  View report now without emailing
-                </button>
+                <p className="mt-2 text-center text-[11px] text-ink-4">This can take a few seconds while we build your PDF.</p>
               </div>
             </>
           ) : (
