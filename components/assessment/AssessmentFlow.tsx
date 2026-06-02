@@ -10,6 +10,7 @@ import {
   ChevronRight, ChevronLeft, ShieldCheck, Check, Eye, EyeOff,
   Clock, Flag, CheckCircle2, Circle, AlertCircle, ListChecks,
   MapPin, Maximize, AlertTriangle, Lock, Loader2, ShieldAlert, Languages,
+  Mail, KeyRound,
 } from 'lucide-react';
 import Logo from '@/components/brand/Logo';
 import {
@@ -40,6 +41,22 @@ const STAGES: { id: StageKey; label: string; icon: typeof HelpCircle }[] = [
 
 const TABS = ['Set your milestone', 'Select your current stage', 'Start assessment'];
 
+// Country dialing codes — India default. (flag, dial code, ISO label)
+const COUNTRY_CODES: { flag: string; dial: string; iso: string }[] = [
+  { flag: '🇮🇳', dial: '+91', iso: 'IN' },
+  { flag: '🇺🇸', dial: '+1', iso: 'US' },
+  { flag: '🇬🇧', dial: '+44', iso: 'UK' },
+  { flag: '🇦🇪', dial: '+971', iso: 'AE' },
+  { flag: '🇸🇦', dial: '+966', iso: 'SA' },
+  { flag: '🇶🇦', dial: '+974', iso: 'QA' },
+  { flag: '🇦🇺', dial: '+61', iso: 'AU' },
+  { flag: '🇸🇬', dial: '+65', iso: 'SG' },
+  { flag: '🇲🇾', dial: '+60', iso: 'MY' },
+  { flag: '🇨🇦', dial: '+1', iso: 'CA' },
+  { flag: '🇩🇪', dial: '+49', iso: 'DE' },
+  { flag: '🇳🇵', dial: '+977', iso: 'NP' },
+];
+
 function fmt(sec: number) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
@@ -58,6 +75,7 @@ export default function AssessmentFlow() {
   const [stage, setStage] = useState<StageKey | ''>('');
   const [email, setEmail] = useState('');
   const [location, setLocation] = useState('');
+  const [countryCode, setCountryCode] = useState('+91'); // default India
   const [phone, setPhone] = useState('');
   const [age, setAge] = useState('');
   const [password, setPassword] = useState('');
@@ -91,6 +109,10 @@ export default function AssessmentFlow() {
   const [statusMsg, setStatusMsg] = useState('');
   const [error, setError] = useState('');
 
+  // account creation (done up front, before the exam)
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState('');
+
   const milestoneLabel = MILESTONES.find((m) => m.id === milestone)?.label ?? '';
   const doingOptions = milestoneLabel
     ? [`Career Planning — ${milestoneLabel.replace('Career Analysis for ', '')} (English)`,
@@ -100,12 +122,14 @@ export default function AssessmentFlow() {
   // ---- field validation ----
   const isValidName = /^[a-zA-Z][a-zA-Z\s.'-]{1,}$/.test(name.trim());
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  const isValidPhone = /^[6-9]\d{9}$/.test(phone.trim());
+  // India: 10 digits starting 6-9. Other countries: 6–15 digits.
+  const isValidPhone = countryCode === '+91' ? /^[6-9]\d{9}$/.test(phone.trim()) : /^\d{6,15}$/.test(phone.trim());
+  const maxPhoneDigits = countryCode === '+91' ? 10 : 15;
   const ageNum = Number(age.trim());
   const isValidAge = Number.isInteger(ageNum) && ageNum >= 10 && ageNum <= 20;
   const isValidLocation = location.trim().length > 2;
-  // Password is optional; if provided it must meet Firebase's 6-char minimum.
-  const isValidPassword = !password.trim() || password.trim().length >= 6;
+  // Password is REQUIRED — these credentials become the student's login.
+  const isValidPassword = password.trim().length >= 6;
   const canNextMilestone = isValidName && milestone;
   const canNextStage = currentDoing && stage;
   const canStart = isValidEmail && isValidPhone && isValidAge && isValidLocation && notRobot && isValidPassword;
@@ -186,14 +210,23 @@ export default function AssessmentFlow() {
 
         if (!session && emailValue && passwordValue) {
           try {
-            session = await signIn(emailValue, passwordValue);
+            // Create the account from the credentials entered before the exam —
+            // these become the student's login. (Sign-up first: newer Firebase
+            // projects return a generic INVALID_LOGIN_CREDENTIALS for unknown
+            // emails, so we can't rely on EMAIL_NOT_FOUND from a sign-in attempt.)
+            session = await signUp(emailValue, passwordValue, name.trim());
           } catch (err) {
-            const code = (err as { code?: string } | null)?.code;
-            if (code === 'EMAIL_NOT_FOUND' && isValidPassword) {
-              session = await signUp(emailValue, passwordValue, name.trim());
+            const code = (err as { code?: string } | null)?.code ?? '';
+            if (code.includes('EMAIL_EXISTS')) {
+              // Returning student — sign in with the same credentials instead.
+              try {
+                session = await signIn(emailValue, passwordValue);
+              } catch {
+                // Wrong password for an existing email — report stays local only.
+              }
             }
-            // Any other auth failure (wrong password, sign-in disabled, etc.)
-            // is ignored — the report stays available locally.
+            // Any other failure (e.g. email/password sign-in disabled in Firebase)
+            // is non-fatal — the report is already saved locally.
           }
         }
 
@@ -226,6 +259,34 @@ export default function AssessmentFlow() {
       setIntroSection(q.section);
     }
   }, [total, handleSubmit, firstIndexOf, ackIntros]);
+
+  // Create the student's account from the credentials entered above, then move
+  // on to the instructions. Doing this up front guarantees the email + password
+  // are a working login and surfaces any problem before the exam starts.
+  const startWithAccount = async () => {
+    setAuthError('');
+    if (getSession()) { setPhase(3); return; } // already signed in
+    setAuthBusy(true);
+    try {
+      await signUp(email.trim(), password.trim(), name.trim());
+      setPhase(3);
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code ?? '';
+      if (code.includes('EMAIL_EXISTS')) {
+        // Email already registered — confirm the password matches by signing in.
+        try {
+          await signIn(email.trim(), password.trim());
+          setPhase(3);
+        } catch {
+          setAuthError('This email is already registered. Enter the password you set earlier, or sign in instead.');
+        }
+      } else {
+        setAuthError(err instanceof Error ? err.message : 'Could not set up your account. Please try again.');
+      }
+    } finally {
+      setAuthBusy(false);
+    }
+  };
 
   // begin runner
   const startTest = () => {
@@ -502,21 +563,41 @@ export default function AssessmentFlow() {
           {phase === 2 && (
             <motion.div key="p2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
               className="bg-white rounded-2xl border border-line shadow-sm p-6 sm:p-8 max-w-2xl mx-auto">
-              <h2 className="text-2xl font-extrabold text-ink text-center mb-1">Let&apos;s start</h2>
-              <p className="text-center text-sm text-ink-3 mb-6">Add a password to save your report to your OneGrasp account (optional).</p>
+              <h2 className="text-2xl font-extrabold text-ink text-center mb-1">Create your account</h2>
+              <p className="text-center text-sm text-ink-3 mb-6">This email &amp; password become your login — use them later to sign in and view your dashboard &amp; report.</p>
               <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="Email" value={email} onChange={setEmail} type="email" placeholder="you@example.com"
-                  error={email.trim() && !isValidEmail ? 'Enter a valid email address.' : ''} />
+                <div>
+                  <label className="text-sm font-semibold text-ink-2 block mb-1.5">Email</label>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com"
+                    className="w-full px-4 py-3 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+                  <p className="mt-1.5 flex items-start gap-1.5 text-[11px] text-ink-4">
+                    <Mail className="w-3.5 h-3.5 mt-px shrink-0 text-red" />
+                    You&apos;ll receive your report and all updates on this email — and use it to log in.
+                  </p>
+                  {email.trim() && !isValidEmail && <p className="text-xs text-red mt-1">Enter a valid email address.</p>}
+                </div>
                 <LocationField value={location} onChange={setLocation}
                   error={location.trim() && !isValidLocation ? 'Pick your location from the suggestions.' : ''} />
-                <Field label="Phone number" value={phone} onChange={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))}
-                  type="tel" placeholder="10-digit mobile"
-                  error={phone.trim() && !isValidPhone ? 'Enter a valid 10-digit mobile number.' : ''} />
+                <div>
+                  <label className="text-sm font-semibold text-ink-2 block mb-1.5">Phone number</label>
+                  <div className="flex items-stretch rounded-xl border border-line bg-bg focus-within:ring-2 focus-within:ring-red/30 focus-within:border-red overflow-hidden">
+                    <select value={countryCode} onChange={(e) => { setCountryCode(e.target.value); setPhone(''); }}
+                      className="shrink-0 bg-transparent pl-3 pr-2 text-sm font-semibold text-ink-2 border-r border-line focus:outline-none cursor-pointer">
+                      {COUNTRY_CODES.map((c) => <option key={c.iso} value={c.dial}>{c.flag} {c.dial}</option>)}
+                    </select>
+                    <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, maxPhoneDigits))}
+                      placeholder={countryCode === '+91' ? '10-digit mobile' : 'mobile number'}
+                      className="flex-1 min-w-0 bg-transparent px-3 py-3 text-sm focus:outline-none" />
+                  </div>
+                  {phone.trim() && !isValidPhone && (
+                    <p className="text-xs text-red mt-1.5">{countryCode === '+91' ? 'Enter a valid 10-digit mobile number.' : 'Enter a valid phone number (6–15 digits).'}</p>
+                  )}
+                </div>
                 <Field label="Age (in years)" value={age} onChange={(v) => setAge(v.replace(/\D/g, '').slice(0, 2))}
                   placeholder="e.g. 14"
                   error={age.trim() && !isValidAge ? 'Age must be between 10 and 20.' : ''} />
                 <div className="sm:col-span-2">
-                  <label className="text-sm font-semibold text-ink-2 block mb-1.5">Create a password <span className="text-ink-4 font-normal">(optional, min 6 chars)</span></label>
+                  <label className="text-sm font-semibold text-ink-2 block mb-1.5">Create a password <span className="text-ink-4 font-normal">(min 6 characters)</span></label>
                   <div className="relative">
                     <input type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••"
                       className="w-full px-4 py-3 pr-10 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
@@ -524,8 +605,12 @@ export default function AssessmentFlow() {
                       {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  {!isValidPassword && (
-                    <p className="text-xs text-red mt-1.5">Password must be at least 6 characters — or leave it blank to skip.</p>
+                  <p className="mt-1.5 flex items-start gap-1.5 text-[11px] text-ink-4">
+                    <KeyRound className="w-3.5 h-3.5 mt-px shrink-0 text-red" />
+                    Remember this — it&apos;s the password you&apos;ll use to log in to your dashboard.
+                  </p>
+                  {password.trim() && password.trim().length < 6 && (
+                    <p className="text-xs text-red mt-1">Password must be at least 6 characters.</p>
                   )}
                 </div>
               </div>
@@ -535,10 +620,18 @@ export default function AssessmentFlow() {
                 <span className="text-sm text-ink-2">I&apos;m not a robot</span>
                 <ShieldCheck className="w-5 h-5 text-ink-4 ml-auto" />
               </button>
+              {authError && (
+                <div className="mt-5 flex items-start gap-2 rounded-xl border border-red-line bg-red-soft p-3 text-sm text-red">
+                  <AlertCircle className="w-4 h-4 mt-px shrink-0" />
+                  <span>{authError} <Link href="/sign-in" className="font-semibold underline">Sign in</Link></span>
+                </div>
+              )}
               <div className="flex items-center justify-between mt-8">
                 <button onClick={() => setPhase(1)} className="inline-flex items-center gap-1 text-sm font-semibold text-ink-3 hover:text-ink"><ChevronLeft className="w-4 h-4" /> Back</button>
-                <button disabled={!canStart} onClick={() => setPhase(3)}
-                  className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-3 rounded-xl shadow-glow disabled:opacity-50 disabled:shadow-none">Start <ChevronRight className="w-4 h-4" /></button>
+                <button disabled={!canStart || authBusy} onClick={startWithAccount}
+                  className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-3 rounded-xl shadow-glow disabled:opacity-50 disabled:shadow-none">
+                  {authBusy ? (<><Loader2 className="w-4 h-4 animate-spin" /> Creating account…</>) : (<>Start <ChevronRight className="w-4 h-4" /></>)}
+                </button>
               </div>
             </motion.div>
           )}
@@ -555,17 +648,20 @@ export default function AssessmentFlow() {
               {/* exam language — questions & answers shown in the chosen language */}
               <div className="rounded-xl border border-line bg-bg p-3.5 mb-4">
                 <p className="text-[12px] font-bold text-ink mb-0.5 flex items-center gap-1.5"><Languages className="w-4 h-4 text-red" /> Choose your exam language</p>
-                <p className="text-[11px] text-ink-3 mb-2.5">Questions and answer options will be shown in this language. The rest of the app stays in English.</p>
-                <div className="flex flex-wrap gap-2.5">
+                <p className="text-[11px] text-ink-3 mb-2.5">Your questions &amp; answers will appear in this language. The rest of the app stays in English.</p>
+                <div className="grid grid-cols-3 gap-2.5">
                   {EXAM_LANGS.map((l) => {
                     const selected = lang === l.id;
+                    const glyph = l.id === 'hi' ? 'अ' : l.id === 'te' ? 'అ' : 'A';
                     return (
                       <button key={l.id} type="button" onClick={() => setLang(l.id)}
-                        className={`flex-1 min-w-[120px] text-left px-4 py-2.5 rounded-xl border-2 transition-all ${selected ? 'border-red bg-red-soft' : 'border-line hover:border-red-line bg-white'}`}>
-                        <span className="block text-[15px] font-extrabold text-ink leading-tight">{l.native}</span>
-                        <span className="block text-[11px] text-ink-4 mt-0.5">
-                          {l.label}{!l.ready && ' · coming soon (shows English for now)'}
+                        className={`relative flex items-center gap-3 rounded-xl border-2 px-3 py-2.5 transition-all ${selected ? 'border-red bg-red-soft' : 'border-line hover:border-red-line bg-white'}`}>
+                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xl font-bold ${selected ? 'bg-red text-white' : 'bg-bg text-ink-3'}`}>{glyph}</span>
+                        <span className="text-left leading-tight">
+                          <span className="block text-[15px] font-extrabold text-ink">{l.native}</span>
+                          <span className="block text-[11px] text-ink-4">{l.label}</span>
                         </span>
+                        {selected && <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-red text-white"><Check className="h-2.5 w-2.5" /></span>}
                       </button>
                     );
                   })}

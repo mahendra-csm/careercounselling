@@ -15,7 +15,6 @@ import Logo from '@/components/brand/Logo';
 import { MBTI_DESC } from '@/lib/psychometric';
 import type {
   AnalyticalBreakdown,
-  CareerFit,
   DomainFitment,
   PsychometricProfile,
   SectionScore,
@@ -428,6 +427,63 @@ function CareerIllo() {
   );
 }
 
+/** Flat, real-world-themed illustration for each career domain. */
+function DomainArt({ domainKey, size = 56 }: { domainKey: string; size?: number }) {
+  const common = { width: size, height: size, viewBox: '0 0 64 64', fill: 'none' as const, xmlns: 'http://www.w3.org/2000/svg' };
+  switch (domainKey) {
+    case 'engineering-technology':
+      return (<svg {...common} aria-hidden><circle cx="26" cy="28" r="13" fill="#fff" stroke="#2D7FF0" strokeWidth="3" /><circle cx="26" cy="28" r="4" fill="#2D7FF0" />{[0, 60, 120, 180, 240, 300].map((a) => { const r = (a * Math.PI) / 180; return <rect key={a} x={26 + Math.cos(r) * 13 - 2} y={28 + Math.sin(r) * 13 - 2} width="4" height="6" rx="1.5" fill="#2D7FF0" transform={`rotate(${a} 26 28)`} />; })}<rect x="38" y="40" width="16" height="10" rx="2" fill="#27AE60" /><rect x="41" y="36" width="10" height="6" rx="1.5" fill="#1E8A4C" /></svg>);
+    case 'research-analytics':
+      return (<svg {...common} aria-hidden><path d="M26 12 h12 v10 l9 20 a4 4 0 0 1 -4 6 h-22 a4 4 0 0 1 -4 -6 l9 -20 z" fill="#E6F6EC" stroke="#27AE60" strokeWidth="2.5" /><path d="M20 38 h24 l3 6 a4 4 0 0 1 -4 6 h-22 a4 4 0 0 1 -4 -6 z" fill="#27AE60" /><circle cx="28" cy="44" r="2" fill="#fff" /><circle cx="36" cy="47" r="1.5" fill="#fff" /><rect x="24" y="10" width="16" height="4" rx="2" fill="#176B3A" /></svg>);
+    case 'psychology-human-behaviour':
+      return (<svg {...common} aria-hidden><path d="M40 14 C24 12 14 24 16 36 c1 7 7 9 7 14 v4 h14 v-6 c8 -3 12 -10 11 -19 C47 22 46 16 40 14 z" fill="#F3ECFD" stroke="#9B51E0" strokeWidth="2.5" /><path d="M31 28 c-3 -4 -9 -1 -7 4 c1 4 7 7 7 7 s6 -3 7 -7 c2 -5 -4 -8 -7 -4 z" fill="#9B51E0" /></svg>);
+    case 'arts-design-culture':
+      return (<svg {...common} aria-hidden><path d="M32 14 C20 14 12 22 12 32 c0 9 7 14 14 14 3 0 4 -2 4 -4 0 -3 3 -4 6 -4 6 0 12 -4 12 -12 0 -10 -8 -18 -16 -12 z" fill="#FDF0E6" stroke="#F2994A" strokeWidth="2.5" /><circle cx="22" cy="28" r="2.6" fill="#EB5757" /><circle cx="30" cy="22" r="2.6" fill="#F2C94C" /><circle cx="39" cy="26" r="2.6" fill="#2D9CDB" /><circle cx="40" cy="35" r="2.6" fill="#27AE60" /><rect x="40" y="40" width="4" height="14" rx="2" fill="#9C5A1E" transform="rotate(35 42 47)" /></svg>);
+    case 'business-entrepreneurship':
+      return (<svg {...common} aria-hidden><rect x="14" y="26" width="36" height="22" rx="3" fill="#EB5757" /><path d="M26 26 v-4 a3 3 0 0 1 3 -3 h6 a3 3 0 0 1 3 3 v4" fill="none" stroke="#9C2B2B" strokeWidth="3" /><rect x="14" y="33" width="36" height="3" fill="#9C2B2B" opacity="0.5" /><path d="M40 22 l8 -6 m0 0 h-5 m5 0 v5" stroke="#27AE60" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>);
+    case 'finance-strategy':
+      return (<svg {...common} aria-hidden><rect x="14" y="34" width="7" height="16" rx="1.5" fill="#9DC2F0" /><rect x="25" y="26" width="7" height="24" rx="1.5" fill="#5B9DF7" /><rect x="36" y="18" width="7" height="32" rx="1.5" fill="#2D7FF0" /><circle cx="44" cy="20" r="9" fill="#F2C94C" stroke="#C99A1E" strokeWidth="2" /><text x="44" y="24" textAnchor="middle" style={{ fontSize: 11, fontWeight: 700, fill: '#9C7A12' }}>₹</text></svg>);
+    case 'education-social-impact':
+      return (<svg {...common} aria-hidden><path d="M12 26 l20 -8 20 8 -20 8 z" fill="#2D9CDB" /><path d="M20 31 v8 c0 3 24 3 24 0 v-8" fill="none" stroke="#1B6491" strokeWidth="2.5" /><rect x="50" y="26" width="2.5" height="10" fill="#1B6491" /><path d="M18 40 h28 v10 a2 2 0 0 1 -2 2 h-24 a2 2 0 0 1 -2 -2 z" fill="#E7F4FC" stroke="#2D9CDB" strokeWidth="2" /></svg>);
+    case 'health-life-sciences':
+      return (<svg {...common} aria-hidden><path d="M32 50 C18 40 12 32 12 24 a10 10 0 0 1 20 -4 a10 10 0 0 1 20 4 c0 8 -6 16 -20 26 z" fill="#FDEAEA" stroke="#EB5757" strokeWidth="2.5" /><path d="M16 30 h8 l3 -7 4 14 3 -7 h14" stroke="#EB5757" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>);
+    default:
+      return (<svg {...common} aria-hidden><circle cx="32" cy="32" r="18" fill="#E8F1FE" stroke="#2D7FF0" strokeWidth="2.5" /><path d="M24 32 l6 6 12 -13" stroke="#2D7FF0" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>);
+  }
+}
+
+/** Mindler-style framework: head + brain with the six lenses orbiting it,
+    each a colored ring badge connected by a flowing line, with a caption. */
+function FrameworkFlow({ sections }: { sections: SectionScore[] }) {
+  const scoreById = Object.fromEntries(sections.map((s) => [s.id, s.score]));
+  const pos = [
+    { left: 14, top: 17 }, { left: 11, top: 50 }, { left: 14, top: 83 },
+    { left: 86, top: 17 }, { left: 89, top: 50 }, { left: 86, top: 83 },
+  ];
+  const nodes = LENSES.map((lens, i) => ({ ...lens, theme: themeFor(lens.id), score: scoreById[lens.id] ?? 0, ...pos[i] }));
+  return (
+    <div className="relative h-full w-full">
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+        {nodes.map((n) => {
+          const sx = n.left < 50 ? 38 : 62; const ex = n.left;
+          return <path key={n.id} d={`M${sx},50 Q${(sx + ex) / 2},${(50 + n.top) / 2} ${ex},${n.top}`} stroke={n.theme.color} strokeWidth="0.5" fill="none" strokeOpacity="0.5" />;
+        })}
+      </svg>
+      <div className="absolute left-1/2 top-1/2 h-[230px] w-[230px] -translate-x-1/2 -translate-y-1/2"><HeadIllo /></div>
+      {nodes.map((n) => {
+        const Icon = n.theme.icon;
+        return (
+          <div key={n.id} className="absolute w-[130px] -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: `${n.left}%`, top: `${n.top}%` }}>
+            <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: n.theme.deep }}>{n.label}</p>
+            <span className="mx-auto my-1 flex h-12 w-12 items-center justify-center rounded-full border-4 bg-white" style={{ borderColor: n.theme.color, color: n.theme.color, boxShadow: '0 6px 14px rgba(22,36,59,0.10)' }}><Icon className="h-5 w-5" /></span>
+            <p className="text-[9px] leading-tight" style={{ color: C.muted }}>{n.caption}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function SectionHero({ theme, eyebrow, title, subtitle }: { theme: SectionTheme; eyebrow: string; title: string; subtitle: string }) {
   const Icon = theme.icon;
   return (
@@ -601,7 +657,7 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
   const confidence = confidenceFromProfile(profile);
   const analytical = profile.analyticalBreakdown?.length ? profile.analyticalBreakdown : buildFallbackBreakdown(profile);
   const sections = profile.sectionScores?.length ? profile.sectionScores : buildFallbackSections(profile, analytical);
-  const domains = (profile.domainFitments?.length ? profile.domainFitments : buildFallbackDomains(profile)).slice(0, 3);
+  const domains = (profile.domainFitments?.length ? profile.domainFitments : buildFallbackDomains(profile)).slice(0, 5);
 
   const generated = new Date(profile.generatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const summary = buildExecutiveNarrative(profile, domains, sections, analytical, confidence);
@@ -613,10 +669,8 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
   const topIntelligences = (profile.intelligences ?? []).slice(0, 8);
   const sectionById = Object.fromEntries(sections.map((s) => [s.id, s])) as Record<string, SectionScore>;
   const clusters = [...profile.clusters].sort((a, b) => b.percent - a.percent).slice(0, 8);
-  const careers = (profile.topCareers ?? []).slice(0, 8);
   const traitLetters = (profile.mbtiType || '').split('');
   const streamDomains = domains.slice(0, 2).map((d) => ({ domain: d, stream: DOMAIN_STREAMS[d.key] })).filter((x) => x.stream);
-  const verdictColor: Record<string, string> = { 'Top Choice': C.green, 'Good Choice': C.blue, Optional: '#2D9CDB', Develop: '#F2994A', Avoid: C.red };
   const SkillRingColors = ['#2D7FF0', '#27AE60', '#11998E', '#9B51E0', '#F2994A', '#2D9CDB', '#EB5757', '#16314C'];
 
   // top domain "career match" fit bars
@@ -685,16 +739,15 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
             </div>
 
             <div className="flex-1">
-              <Eyebrow>Your top 3 fitment domains</Eyebrow>
-              <div className="mt-2.5 grid grid-cols-3 gap-3">
+              <Eyebrow>Your top 5 fitment domains</Eyebrow>
+              <div className="mt-2.5 grid grid-cols-5 gap-2.5">
                 {domains.map((domain, index) => {
-                  const accent = index === 0 ? C.blue : index === 1 ? '#2D9CDB' : '#27AE60';
-                  const Icon = [Target, Sparkles, TrendingUp][index] ?? Target;
+                  const accent = [C.blue, '#2D9CDB', '#27AE60', '#9B51E0', '#F2994A'][index] ?? C.blue;
                   return (
-                    <div key={domain.key} className="rounded-2xl border p-4" style={{ borderColor: C.line, borderTop: `4px solid ${accent}` }}>
-                      <div className="flex items-center justify-between"><span className="flex h-8 w-8 items-center justify-center rounded-lg text-white" style={{ background: accent }}><Icon className="h-4 w-4" /></span><span className="rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: `${accent}14`, color: accent }}>{domain.score}</span></div>
-                      <p className="mt-2.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: accent }}>Rank #{index + 1}</p>
-                      <p className="mt-0.5 text-[13.5px] font-bold leading-tight" style={{ color: C.ink }}>{domain.label}</p>
+                    <div key={domain.key} className="rounded-2xl border p-3" style={{ borderColor: C.line, borderTop: `4px solid ${accent}` }}>
+                      <div className="flex items-center justify-between"><span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: `${accent}16` }}><DomainArt domainKey={domain.key} size={20} /></span><span className="rounded-md px-1.5 py-0.5 text-[10px] font-bold" style={{ background: `${accent}14`, color: accent }}>{domain.score}</span></div>
+                      <p className="mt-2 text-[9px] font-bold uppercase tracking-wider" style={{ color: accent }}>#{index + 1}</p>
+                      <p className="mt-0.5 text-[11px] font-bold leading-tight" style={{ color: C.ink }}>{domain.label}</p>
                     </div>
                   );
                 })}
@@ -707,47 +760,20 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
         <PageFrame page={2} kicker="The discovery framework" name={profile.name}>
           <div className="flex h-full flex-col">
             <div>
-              <Eyebrow color={C.blue}>How we read you</Eyebrow>
+              <Eyebrow color={C.blue}>The OneGrasp framework</Eyebrow>
               <h2 className="mt-1 text-[26px] font-extrabold" style={{ color: C.ink }}>Six lenses, read together</h2>
-              <p className="mt-2 max-w-[640px] text-[13px] leading-6" style={{ color: C.body }}>Your report combines six independent lenses into one integrated picture. No single answer decides your direction — the lenses are weighed together to recommend broad domains, not job titles.</p>
+              <p className="mt-2 max-w-[660px] text-[12.5px] leading-5" style={{ color: C.body }}>Your report combines six independent lenses into one integrated picture. No single answer decides your direction — the lenses are weighed together to recommend broad career <b>domains</b>, never single job roles.</p>
             </div>
-            <div className="mt-3 grid flex-1 grid-cols-[0.82fr_1.18fr] gap-5">
-              <Card pad="p-4" className="flex flex-col">
-                <Eyebrow>Your mind, mapped</Eyebrow>
-                <div className="relative my-2 flex-1"><HeadIllo /></div>
-                <div className="rounded-xl p-3 text-center text-white" style={{ background: `linear-gradient(150deg, ${C.blue}, ${C.navy})` }}>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70">Overall fit index</p>
-                  <p className="text-[26px] font-extrabold leading-tight">{profile.overallScore}<span className="text-[13px] font-semibold text-white/70">/100</span></p>
-                </div>
-              </Card>
-              <div className="flex flex-col gap-3">
-                <Card pad="p-3.5">
-                  <div className="grid grid-cols-[140px_1fr] items-center gap-3">
-                    <div className="h-[140px]"><RadarChart axes={LENSES.map((l) => ({ label: l.label, value: sectionById[l.id]?.score ?? 0 }))} color={C.blue} size={140} /></div>
-                    <div><Eyebrow color={C.blue}>Executive reading</Eyebrow><p className="mt-1.5 text-[11.5px] leading-5" style={{ color: C.body }}>{summary}</p></div>
-                  </div>
-                </Card>
-                <Card pad="p-3.5" className="flex-1">
-                  <Eyebrow color={C.blue}>The six lenses</Eyebrow>
-                  <div className="mt-2.5 space-y-2">
-                    {LENSES.map((lens) => {
-                      const theme = themeFor(lens.id); const Icon = theme.icon; const score = sectionById[lens.id]?.score ?? 0;
-                      return (
-                        <div key={lens.id} className="flex items-center gap-3">
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: theme.soft, color: theme.color }}><Icon style={{ width: 16, height: 16 }} /></span>
-                          <div className="w-[120px] shrink-0"><p className="text-[12px] font-bold leading-tight" style={{ color: C.ink }}>{lens.label}</p><p className="text-[9.5px] leading-tight" style={{ color: C.muted }}>{lens.caption}</p></div>
-                          <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: C.faint }}><div className="h-full rounded-full" style={{ width: `${Math.max(4, score)}%`, background: theme.color }} /></div>
-                          <span className="w-8 shrink-0 text-right text-[12px] font-bold tabular-nums" style={{ color: C.ink }}>{score}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Card>
-                <div className="grid grid-cols-3 gap-3">
-                  <Card pad="p-3"><div className="flex items-center gap-1.5"><TrendingUp className="h-3.5 w-3.5" style={{ color: C.green }} /><Eyebrow>Strongest</Eyebrow></div><p className="mt-1 text-[12.5px] font-bold leading-tight" style={{ color: C.ink }}>{strongestSection?.title ?? '—'}</p></Card>
-                  <Card pad="p-3"><div className="flex items-center gap-1.5"><Target className="h-3.5 w-3.5" style={{ color: C.red }} /><Eyebrow>Next focus</Eyebrow></div><p className="mt-1 text-[12.5px] font-bold leading-tight" style={{ color: C.ink }}>{weakestSection?.title ?? '—'}</p></Card>
-                  <Card pad="p-3"><div className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" style={{ color: C.blue }} /><Eyebrow>Reliability</Eyebrow></div><p className="mt-1 text-[12.5px] font-bold leading-tight" style={{ color: C.ink }}>{confidence.percent}% answered</p></Card>
-                </div>
+
+            <Card pad="p-3" className="mt-3 flex-1">
+              <div className="h-full w-full"><FrameworkFlow sections={sections} /></div>
+            </Card>
+
+            <div className="mt-3 flex items-center justify-between gap-4 rounded-2xl px-5 py-3.5 text-white" style={{ background: `linear-gradient(135deg, ${C.navy}, #24405E)` }}>
+              <p className="text-[12.5px] font-semibold">Let’s look at your results for each of these lenses — and help you discover the domains that fit you best.</p>
+              <div className="flex shrink-0 items-center gap-4">
+                <div className="text-center"><p className="text-[9px] uppercase tracking-wider text-white/60">Strongest</p><p className="text-[12px] font-bold">{strongestSection?.title ?? '—'}</p></div>
+                <div className="text-center"><p className="text-[9px] uppercase tracking-wider text-white/60">Fit index</p><p className="text-[18px] font-extrabold leading-none" style={{ color: C.yellow }}>{profile.overallScore}</p></div>
               </div>
             </div>
           </div>
@@ -877,7 +903,7 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
           dominantTag="Your dominant intelligence" dominantTitle={trimIntelligenceLabel(profile.dominantIntelligence ?? topIntelligences[0]?.label ?? '—')}
           dominantBody={`${trimIntelligenceLabel(profile.dominantIntelligence ?? topIntelligences[0]?.label ?? 'This intelligence')} is your most natural way of processing the world. Pair a weaker intelligence with a strong one to develop it faster.`}
           bars={topIntelligences.map((i) => ({ label: trimIntelligenceLabel(i.label), value: i.percent }))}
-          insight={`Careers that reward ${trimIntelligenceLabel(profile.dominantIntelligence ?? topIntelligences[0]?.label ?? 'your dominant').toLowerCase()} thinking will feel effortless to you — look for roles where that intelligence is the main tool of the job.`}
+          insight={`Domains that reward ${trimIntelligenceLabel(profile.dominantIntelligence ?? topIntelligences[0]?.label ?? 'your dominant').toLowerCase()} thinking will feel effortless to you — gravitate toward fields where that intelligence is the main tool.`}
           footer={<StrengthWeakness strengths={sectionById.intelligences?.strengths ?? []} weaknesses={sectionById.intelligences?.weaknesses ?? []} />}
         />
 
@@ -910,46 +936,61 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
           dominantTag="Your strongest EQ area" dominantTitle={[...profile.eq].sort((a, b) => b.percent - a.percent)[0]?.label ?? '—'}
           dominantBody={`Overall EQ is ${bandLabel(eqAverage).toLowerCase()} (${eqAverage}%). Your strongest component is ${([...profile.eq].sort((a, b) => b.percent - a.percent)[0]?.label ?? '').toLowerCase()} — a real asset in teamwork and people-facing work.`}
           bars={profile.eq.map((e) => ({ label: e.label, value: e.percent }))}
-          insight={`Your ${([...profile.eq].sort((a, b) => b.percent - a.percent)[0]?.label ?? 'strongest area').toLowerCase()} is a standout — it will help you the most in group projects, leadership and any role that depends on reading people well.`}
+          insight={`Your ${([...profile.eq].sort((a, b) => b.percent - a.percent)[0]?.label ?? 'strongest area').toLowerCase()} is a standout — it will help you the most in group projects, leadership and any field that depends on reading people well.`}
           footer={<div className="grid grid-cols-2 gap-3"><div className="rounded-xl border p-3.5" style={{ borderColor: C.line, background: SECTION_THEME.eq.soft }}><Eyebrow color={SECTION_THEME.eq.color}>Why EQ matters</Eyebrow><p className="mt-1.5 text-[12px] leading-5" style={{ color: C.body }}>Emotional intelligence shapes teamwork, leadership and resilience as much as raw ability — often the deciding factor in long-term success.</p></div><div className="flex items-center justify-center rounded-xl border p-3.5" style={{ borderColor: C.line }}><Donut value={eqAverage} size={104} color={SECTION_THEME.eq.color} caption="EQ" /></div></div>}
         />
 
-        {/* ===== PAGE 12 — TOP DOMAINS + CLUSTERS ===== */}
+        {/* ===== PAGE 12 — TOP 5 DOMAINS ===== */}
         <PageFrame page={12} kicker="Your recommended domains" name={profile.name}>
           <div className="flex h-full flex-col gap-3">
-            <div className="flex items-end justify-between gap-6"><div><Eyebrow color={C.blue}>Top 3 career fitment domains</Eyebrow><h2 className="mt-1 text-[24px] font-extrabold" style={{ color: C.ink }}>Where you fit — and the evidence</h2></div><span className="rounded-full border px-3 py-1.5 text-[11px] font-semibold" style={{ borderColor: C.line, color: C.body, background: C.faint }}>Broad domains, not job titles</span></div>
-            <div className="space-y-3">{domains.map((domain, index) => <DomainFitmentCard key={domain.key} domain={domain} rank={index + 1} profile={profile} />)}</div>
-            <Card pad="p-4" className="flex-1">
-              <Eyebrow color={C.blue}>Career cluster alignment</Eyebrow>
-              <div className="mt-3"><MindlerBars items={clusters.map((c) => ({ label: c.label, value: c.percent }))} color={C.blue} /></div>
-            </Card>
+            <div className="flex items-end justify-between gap-6"><div><Eyebrow color={C.blue}>Top 5 career fitment domains</Eyebrow><h2 className="mt-1 text-[24px] font-extrabold" style={{ color: C.ink }}>Where you fit best</h2><p className="mt-1 text-[12px] leading-5" style={{ color: C.body }}>Built by reading all your answers across the six lenses together — broad fields to explore, never a single fixed job.</p></div><span className="shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-semibold" style={{ borderColor: C.line, color: C.body, background: C.faint }}>Domains, not roles</span></div>
+            <div className="flex flex-1 flex-col gap-2.5">
+              {domains.map((domain, index) => {
+                const accent = [C.blue, '#2D9CDB', '#27AE60', '#9B51E0', '#F2994A'][index] ?? C.blue;
+                const ev = domainEvidence(domain, profile);
+                return (
+                  <div key={domain.key} className="flex flex-1 items-center gap-4 rounded-2xl border p-3.5" style={{ borderColor: C.line, borderLeft: `5px solid ${accent}` }}>
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl" style={{ background: `${accent}14` }}><DomainArt domainKey={domain.key} size={40} /></div>
+                    <div className="w-[34%] shrink-0">
+                      <div className="flex items-center gap-2"><span className="text-[11px] font-extrabold" style={{ color: accent }}>#{index + 1}</span><h3 className="text-[15px] font-bold leading-tight" style={{ color: C.ink }}>{domain.label}</h3></div>
+                      <p className="mt-1 text-[10.5px] leading-4" style={{ color: C.muted }}>{domain.focus}</p>
+                    </div>
+                    <div className="flex flex-1 flex-col gap-1.5">
+                      {ev.map((b) => (
+                        <div key={b.label} className="flex items-center gap-2">
+                          <span className="w-[78px] shrink-0 text-[9.5px] font-medium" style={{ color: C.muted }}>{b.label}</span>
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: C.faint }}><div className="h-full rounded-full" style={{ width: `${Math.max(4, b.value)}%`, background: accent }} /></div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="shrink-0 text-center"><p className="text-[24px] font-extrabold leading-none" style={{ color: accent }}>{domain.score}</p><p className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: C.muted }}>fit</p></div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </PageFrame>
 
-        {/* ===== PAGE 13 — CAREER MATCH ===== */}
-        <PageFrame page={13} kicker="Career match" name={profile.name}>
-          <div className="flex h-full flex-col gap-4">
-            <SectionHero theme={SECTION_THEME.clusters} eyebrow="Your #1 career match" title={topDomain?.label ?? 'Your top domain'} subtitle="How strongly your full profile aligns with this domain — and why." />
+        {/* ===== PAGE 13 — CAREER MATCH + CLUSTERS ===== */}
+        <PageFrame page={13} kicker="Your #1 domain match" name={profile.name}>
+          <div className="flex h-full flex-col gap-3.5">
+            <SectionHero theme={SECTION_THEME.clusters} eyebrow="Your #1 career domain" title={topDomain?.label ?? 'Your top domain'} subtitle="How strongly your full profile aligns with this domain — and why." />
             <div className="grid grid-cols-[1.1fr_0.9fr] gap-4">
               <Card pad="p-4">
-                <div className="mb-2 h-[96px] w-full overflow-hidden rounded-xl" style={{ background: C.faint }}><CareerIllo /></div>
+                <div className="mb-2 h-[88px] w-full overflow-hidden rounded-xl" style={{ background: C.faint }}><CareerIllo /></div>
                 <Eyebrow color={C.blue}>About this domain</Eyebrow>
-                <p className="mt-2 text-[12.5px] leading-6" style={{ color: C.body }}>{topDomain?.focus}</p>
-                <p className="mt-2 text-[12px] leading-6" style={{ color: C.muted }}>{topDomain?.rationale}</p>
-                <div className="mt-3 rounded-xl border p-3" style={{ borderColor: C.line, background: C.faint }}>
-                  <Eyebrow color={C.blue}>Signals supporting this match</Eyebrow>
-                  <div className="mt-2"><Bullet items={topDomain?.signals ?? []} color={C.blue} /></div>
-                </div>
+                <p className="mt-2 text-[12px] leading-5" style={{ color: C.body }}>{topDomain?.focus}</p>
+                <p className="mt-2 text-[11.5px] leading-5" style={{ color: C.muted }}>{topDomain?.rationale}</p>
               </Card>
               <Card pad="p-4" className="flex flex-col">
                 <div className="flex items-center justify-between"><Eyebrow color={C.blue}>Your match</Eyebrow><span className="rounded-lg px-3 py-1 text-[14px] font-extrabold" style={{ background: '#E8F1FE', color: C.blue }}>{topDomain?.score}%</span></div>
                 <div className="mt-3 flex-1"><MindlerBars items={matchBars} color={C.blue} /></div>
               </Card>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Card pad="p-4"><div className="flex items-center gap-2"><Lightbulb className="h-4 w-4" style={{ color: C.yellow }} /><Eyebrow>How to explore it</Eyebrow></div><div className="mt-2"><Bullet items={[`Take on a small project or competition in ${topDomain?.label.toLowerCase() ?? 'this area'}.`, 'Read about the field and talk to someone working in it.', 'Shadow or intern to test it against reality.']} color={C.blue} /></div></Card>
-              <Card pad="p-4"><div className="flex items-center gap-2"><TrendingUp className="h-4 w-4" style={{ color: C.green }} /><Eyebrow>Runner-up domains</Eyebrow></div><div className="mt-2 space-y-2">{domains.slice(1, 3).map((d) => <div key={d.key} className="flex items-center justify-between rounded-lg border px-3 py-2" style={{ borderColor: C.line }}><span className="text-[12px] font-semibold" style={{ color: C.ink }}>{d.label}</span><span className="text-[12px] font-bold" style={{ color: C.blue }}>{d.score}%</span></div>)}</div></Card>
-            </div>
+            <Card pad="p-4" className="flex-1">
+              <Eyebrow color={C.blue}>Career cluster alignment</Eyebrow>
+              <div className="mt-2.5"><MindlerBars items={clusters.map((c) => ({ label: c.label, value: c.percent }))} color={C.blue} /></div>
+            </Card>
           </div>
         </PageFrame>
 
@@ -973,28 +1014,22 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
           </div>
         </PageFrame>
 
-        {/* ===== PAGE 15 — PATHS + SUBJECTS + NEXT STEPS ===== */}
-        <PageFrame page={15} kicker="Paths, subjects & next steps" name={profile.name}>
+        {/* ===== PAGE 15 — SUBJECTS + NEXT STEPS ===== */}
+        <PageFrame page={15} kicker="Subjects & next steps" name={profile.name}>
           <div className="flex h-full flex-col gap-3.5">
-            <div><Eyebrow color={C.blue}>Illustrative career paths</Eyebrow><h2 className="mt-1 text-[20px] font-extrabold" style={{ color: C.ink }}>Roles within your top domains</h2></div>
-            <Card pad="p-0" className="overflow-hidden">
-              <table className="w-full border-collapse">
-                <thead><tr style={{ background: C.navy }}>{['#', 'Career path', 'Profile fit', 'Rating'].map((h) => <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold text-white">{h}</th>)}</tr></thead>
-                <tbody>
-                  {careers.map((career: CareerFit, i) => {
-                    const vc = verdictColor[career.verdict] ?? C.muted;
-                    return (
-                      <tr key={career.title} style={{ background: i % 2 ? '#FAFCFE' : '#fff', borderBottom: `1px solid ${C.line}` }}>
-                        <td className="px-3 py-2 text-[12px] font-bold" style={{ color: C.navy }}>{i + 1}</td>
-                        <td className="px-3 py-2"><p className="text-[12px] font-bold" style={{ color: C.ink }}>{career.title}</p><p className="text-[10px]" style={{ color: C.muted }}>{career.cluster} · {career.roles}</p></td>
-                        <td className="px-3 py-2"><div className="flex items-center gap-2"><div className="h-2 w-[80px] overflow-hidden rounded-full" style={{ background: '#EAF0F8' }}><div className="h-full rounded-full" style={{ width: `${career.match}%`, background: C.blue }} /></div><span className="text-[11px] font-bold" style={{ color: C.blue }}>{career.match}</span></div></td>
-                        <td className="px-3 py-2"><span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white" style={{ background: vc }}>{career.verdict}</span></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </Card>
+            <SectionHero theme={SECTION_THEME.clusters} eyebrow="Your action plan" title="Subjects & next steps" subtitle="Where to focus academically, and what to do next to act on this report." />
+
+            <div className="grid grid-cols-5 gap-2.5">
+              {domains.map((domain, index) => {
+                const accent = [C.blue, '#2D9CDB', '#27AE60', '#9B51E0', '#F2994A'][index] ?? C.blue;
+                return (
+                  <div key={domain.key} className="flex flex-col items-center rounded-xl border p-2.5 text-center" style={{ borderColor: C.line }}>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: `${accent}14` }}><DomainArt domainKey={domain.key} size={28} /></div>
+                    <p className="mt-1.5 text-[9.5px] font-bold leading-tight" style={{ color: C.ink }}>{domain.label}</p>
+                  </div>
+                );
+              })}
+            </div>
 
             <div><Eyebrow color={C.blue}>Suggested streams & subjects</Eyebrow></div>
             <div className="grid grid-cols-2 gap-3">

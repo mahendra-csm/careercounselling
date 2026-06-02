@@ -53,7 +53,7 @@ export default function Pricing() {
             <p className="text-sm text-ink-3 mb-6">Everything you need to get started and see real value.</p>
 
             <Link
-              href="/sign-up"
+              href="/assessment"
               className="block w-full text-center border-2 border-ink text-ink font-semibold px-5 py-3 rounded-xl hover:bg-ink hover:text-white transition-all mb-6"
             >
               Get started free
@@ -92,7 +92,7 @@ export default function Pricing() {
             <p className="text-sm text-ink-3 mb-6">The full student guidance suite. Cancel anytime.</p>
 
             <Link
-              href="/sign-up"
+              href="/assessment"
               className="block w-full text-center bg-red text-white font-semibold px-5 py-3 rounded-xl hover:bg-red-dark transition-all shadow-glow mb-6"
             >
               Start 7-day free trial →

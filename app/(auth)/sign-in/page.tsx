@@ -114,10 +114,13 @@ export default function SignInPage() {
           </form>
 
           <p className="text-center text-sm text-ink-3 mt-5">
-            No account?{' '}
-            <Link href="/sign-up" className="text-red font-semibold hover:underline">
-              Create one free
+            New here?{' '}
+            <Link href="/assessment" className="text-red font-semibold hover:underline">
+              Start your free assessment
             </Link>
+          </p>
+          <p className="text-center text-xs text-ink-4 mt-2">
+            Your account is created when you take the assessment — sign in with the email &amp; password you used there.
           </p>
         </div>
       </motion.div>

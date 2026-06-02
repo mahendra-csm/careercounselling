@@ -44,7 +44,7 @@ export default function Navbar() {
               Sign in
             </Link>
             <Link
-              href="/sign-up"
+              href="/assessment"
               className="text-sm font-semibold bg-red text-white px-5 py-2.5 rounded-lg hover:bg-red-dark transition-all shadow-glow hover:shadow-glow-lg active:scale-95"
             >
               Get started →
@@ -84,7 +84,7 @@ export default function Navbar() {
                 Sign in
               </Link>
               <Link
-                href="/sign-up"
+                href="/assessment"
                 className="text-sm font-semibold bg-red text-white text-center px-5 py-3.5 rounded-lg"
               >
                 Get started →
