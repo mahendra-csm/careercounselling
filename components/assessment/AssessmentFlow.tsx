@@ -268,8 +268,25 @@ export default function AssessmentFlow() {
     }
   }, [answers, name, password, email, router, total]);
 
-  // Stores the full student lead in Firestore and emails the report to the
-  // chosen recipient (from support@onegrasp.com).
+  // Stores the full student lead in Firestore (both forms' data). Best-effort —
+  // returns true/false so we can show the student whether it was saved.
+  const persistLead = async (): Promise<boolean> => {
+    try {
+      const session = getSession();
+      const fullPhone = phone.trim() ? `${countryCode} ${phone.trim()}` : '';
+      const { saveLead } = await import('@/lib/firebase');
+      return await saveLead({
+        name: name.trim(), email: email.trim(), phone: fullPhone, class: klass || '—',
+        rating, recipientEmail: recipientEmail.trim() || email.trim(), reportId,
+        completion: completionPct, overallScore: 0, milestone, stage, location, age,
+        currentDoing,
+      }, session);
+    } catch {
+      return false;
+    }
+  };
+
+  // Saves the lead and emails the report to the chosen recipient.
   const sendReport = async () => {
     setSendError('');
     const recipient = recipientEmail.trim();
@@ -277,19 +294,11 @@ export default function AssessmentFlow() {
     if (!klass) { setSendError('Please select your class.'); return; }
     if (!rating) { setSendError('Please rate your exam out of 10.'); return; }
     setSending(true);
-    const session = getSession();
-    const fullPhone = phone.trim() ? `${countryCode} ${phone.trim()}` : '';
     const reportUrl = `${window.location.origin}/report/view?id=${reportId}`;
+    const fullPhone = phone.trim() ? `${countryCode} ${phone.trim()}` : '';
 
-    // 1) Persist the lead (best-effort — never blocks the user).
-    try {
-      const { saveLead } = await import('@/lib/firebase');
-      await saveLead({
-        name: name.trim(), email: email.trim(), phone: fullPhone, class: klass,
-        rating, recipientEmail: recipient, reportId, completion: completionPct,
-        milestone, stage, location, age,
-      }, session);
-    } catch { /* non-fatal */ }
+    // 1) Persist the lead (never blocks the user).
+    await persistLead();
 
     // 2) Email the report.
     try {
@@ -568,7 +577,7 @@ export default function AssessmentFlow() {
                   className="mt-5 w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow disabled:opacity-50 disabled:shadow-none">
                   {sending ? (<><Loader2 className="w-4 h-4 animate-spin" /> Sending your report…</>) : (<><Mail className="w-4 h-4" /> Send my report</>)}
                 </button>
-                <button onClick={() => router.push(`/report/view?id=${reportId}`)}
+                <button onClick={async () => { await persistLead(); router.push(`/report/view?id=${reportId}`); }}
                   className="mt-2 w-full text-center text-sm font-semibold text-ink-3 hover:text-ink">
                   View report now without emailing
                 </button>
