@@ -15,6 +15,11 @@ const nextConfig = {
   },
   experimental: {
     serverComponentsExternalPackages: ['@react-pdf/renderer', 'puppeteer', 'puppeteer-core', '@sparticuz/chromium'],
+    // Force the headless-Chrome binary files into the send-report serverless
+    // function (otherwise the bundler drops @sparticuz/chromium's /bin folder).
+    outputFileTracingIncludes: {
+      '/api/send-report': ['./node_modules/@sparticuz/chromium/bin/**/*'],
+    },
   },
 };
 
