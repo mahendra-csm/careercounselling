@@ -72,6 +72,7 @@ export default function AssessmentFlow() {
 
   // collected data
   const [name, setName] = useState('');
+  const [school, setSchool] = useState('');
   const [milestone, setMilestone] = useState<string>('');
   const [currentDoing, setCurrentDoing] = useState('');
   const [stage, setStage] = useState<StageKey | ''>('');
@@ -141,11 +142,12 @@ export default function AssessmentFlow() {
   const ageNum = Number(age.trim());
   const isValidAge = Number.isInteger(ageNum) && ageNum >= 10 && ageNum <= 20;
   const isValidLocation = location.trim().length > 2;
+  const isValidSchool = school.trim().length >= 2;
   // Password is REQUIRED — these credentials become the student's login.
   const isValidPassword = password.trim().length >= 6;
   const canNextMilestone = isValidName && milestone;
   const canNextStage = currentDoing && stage;
-  const canStart = isValidEmail && isValidPhone && isValidAge && isValidLocation && notRobot && isValidPassword;
+  const canStart = isValidEmail && isValidPhone && isValidAge && isValidLocation && isValidSchool && notRobot && isValidPassword;
 
   // section boundaries
   const firstIndexOf = useMemo(() => {
@@ -265,8 +267,8 @@ export default function AssessmentFlow() {
       const { saveLead } = await import('@/lib/firebase');
       return await saveLead({
         name: name.trim(), email: email.trim(), phone: fullPhone, class: klass || '—',
-        rating, recipientEmail: recipientEmail.trim() || email.trim(), reportId,
-        completion: completionPct, overallScore: 0, milestone, stage, location, age,
+        school: school.trim(), rating, recipientEmail: recipientEmail.trim() || email.trim(),
+        reportId, completion: completionPct, overallScore: 0, milestone, stage, location, age,
         currentDoing,
       }, session);
     } catch {
@@ -535,6 +537,10 @@ export default function AssessmentFlow() {
                       {CLASS_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-semibold text-ink-2 block mb-1">School</label>
+                    <input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="Your school name" className="w-full px-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+                  </div>
                 </div>
 
                 <div className="mt-3">
@@ -770,6 +776,9 @@ export default function AssessmentFlow() {
                 <Field label="Age (in years)" value={age} onChange={(v) => setAge(v.replace(/\D/g, '').slice(0, 2))}
                   placeholder="e.g. 14"
                   error={age.trim() && !isValidAge ? 'Age must be between 10 and 20.' : ''} />
+                <Field label="School name" value={school} onChange={setSchool}
+                  placeholder="Your school name"
+                  error={school.trim() && !isValidSchool ? 'Enter your school name.' : ''} />
                 <div className="sm:col-span-2">
                   <label className="text-sm font-semibold text-ink-2 block mb-1.5">Create a password <span className="text-ink-4 font-normal">(min 6 characters)</span></label>
                   <div className="relative">

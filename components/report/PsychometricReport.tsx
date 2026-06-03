@@ -20,7 +20,7 @@ import type {
   SectionScore,
 } from '@/lib/psychometric';
 
-const TOTAL_PAGES = 15;
+const TOTAL_PAGES = 16;
 
 /* Mindler-style SaaS-clean palette. */
 const C = {
@@ -925,6 +925,21 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
                 ))}
               </div>
             </Card>
+            <div className="grid grid-cols-3 gap-2.5">
+              {[
+                { tag: 'Meaning', body: SECTION_MEANING.analytical },
+                { tag: 'Analysis', body: `Your sharpest block is ${analytical[0]?.label?.toLowerCase()} at ${analytical[0]?.percent}%${profile.analyticalScore?.total ? `, ${profile.analyticalScore.correct}/${profile.analyticalScore.total} correct overall` : ''}.` },
+                { tag: 'Development', body: sectionById.analytical?.weaknesses[0] ?? `Practice ${analytical[analytical.length - 1]?.label?.toLowerCase()} in short, repeated sessions to lift accuracy.` },
+              ].map((p) => (
+                <div key={p.tag} className="rounded-xl border p-3" style={{ borderColor: C.line, background: C.faint }}>
+                  <div className="mb-1.5 flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: SECTION_THEME.analytical.color }} /><Eyebrow>{p.tag}</Eyebrow></div>
+                  <p className="text-[11.5px] leading-5" style={{ color: C.body }}>{p.body}</p>
+                </div>
+              ))}
+            </div>
+            <InsightBanner color={SECTION_THEME.analytical.color}>
+              Reasoning is a trainable skill. Spend 15 focused minutes a few times a week on your lowest block ({analytical[analytical.length - 1]?.label?.toLowerCase()}) and it will improve measurably — these scores are a snapshot of today, not a ceiling.
+            </InsightBanner>
             <div className="flex-1"><StrengthWeakness strengths={sectionById.analytical?.strengths ?? []} weaknesses={sectionById.analytical?.weaknesses ?? []} /></div>
           </div>
         </PageFrame>
@@ -1049,6 +1064,71 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
             <div className="flex items-center justify-between gap-4 rounded-2xl p-4 text-white" style={{ background: `linear-gradient(135deg, ${C.blue}, ${C.navy})` }}>
               <div><p className="text-[14px] font-bold">Ready for your roadmap?</p><p className="text-[11.5px] text-white/85">Book a 1-on-1 counselling session to turn this report into a step-by-step plan.</p></div>
               <span className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[12px] font-bold" style={{ background: C.yellow, color: C.navy }}>Schedule a session <ArrowRight className="h-4 w-4" /></span>
+            </div>
+          </div>
+        </PageFrame>
+
+        {/* ===== PAGE 16 — OVERALL SUMMARY ===== */}
+        <PageFrame page={16} kicker="Your career at a glance" name={profile.name}>
+          <div className="flex h-full flex-col gap-4">
+            <SectionHero theme={SECTION_THEME.clusters} eyebrow="Overall summary" title="Your career, in one page" subtitle="A synthesis of every lens — the headline of who you are and where you fit." />
+
+            <Card pad="p-4">
+              <Eyebrow color={C.blue}>The big picture</Eyebrow>
+              <p className="mt-2 text-[13px] leading-6" style={{ color: C.body }}>{summary}</p>
+            </Card>
+
+            <div>
+              <Eyebrow color={C.blue}>Your headline profile</Eyebrow>
+              <div className="mt-2.5 grid grid-cols-4 gap-2.5">
+                {[
+                  { k: 'Personality', v: profile.mbtiType, c: SECTION_THEME.personality.color },
+                  { k: 'Top interest', v: profile.topInterests[0] ?? profile.interests[0]?.label ?? '—', c: SECTION_THEME.interests.color },
+                  { k: 'Top motivator', v: profile.motivators[0]?.label ?? '—', c: SECTION_THEME.motivators.color },
+                  { k: 'Learning style', v: profile.dominantLearning, c: SECTION_THEME.learning.color },
+                  { k: 'Dominant intelligence', v: trimIntelligenceLabel(profile.dominantIntelligence ?? topIntelligences[0]?.label ?? '—'), c: SECTION_THEME.intelligences.color },
+                  { k: 'Top ability', v: trimSkillLabel(topCapabilities[0]?.label ?? '—'), c: SECTION_THEME.analytical.color },
+                  { k: 'Overall EQ', v: `${bandLabel(eqAverage)} (${eqAverage}%)`, c: SECTION_THEME.eq.color },
+                  { k: 'Fit index', v: `${profile.overallScore}/100`, c: C.blue },
+                ].map((t) => (
+                  <div key={t.k} className="rounded-xl border p-3" style={{ borderColor: C.line, borderTop: `3px solid ${t.c}` }}>
+                    <p className="text-[9.5px] font-semibold uppercase tracking-wider" style={{ color: C.muted }}>{t.k}</p>
+                    <p className="mt-1 text-[12.5px] font-bold leading-tight" style={{ color: C.ink }}>{t.v}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid flex-1 grid-cols-[1fr_1fr] gap-4">
+              <Card pad="p-4" className="flex flex-col">
+                <Eyebrow color={C.blue}>Your top 5 domains</Eyebrow>
+                <div className="mt-3 flex-1 space-y-2.5">
+                  {domains.map((d, i) => {
+                    const accent = [C.blue, '#2D9CDB', '#27AE60', '#9B51E0', '#F2994A'][i] ?? C.blue;
+                    return (
+                      <div key={d.key} className="flex items-center gap-2.5">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: `${accent}16` }}><DomainArt domainKey={d.key} size={20} /></span>
+                        <span className="w-[44%] shrink-0 text-[11.5px] font-semibold leading-tight" style={{ color: C.ink }}>{d.label}</span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: C.faint }}><div className="h-full rounded-full" style={{ width: `${Math.max(4, d.score)}%`, background: accent }} /></div>
+                        <span className="w-7 shrink-0 text-right text-[11.5px] font-bold tabular-nums" style={{ color: C.ink }}>{d.score}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              <Card pad="p-4" className="flex flex-col">
+                <div className="flex items-center gap-2"><Lightbulb className="h-4 w-4" style={{ color: C.yellow }} /><Eyebrow color={C.blue}>What to do next</Eyebrow></div>
+                <div className="mt-3 flex-1"><Bullet items={priorities} color={C.blue} /></div>
+              </Card>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-2xl p-4 text-white" style={{ background: `linear-gradient(135deg, ${C.blue}, ${C.navy})` }}>
+              <div>
+                <p className="text-[14px] font-bold">{firstName(profile.name)}, your strongest direction is {domains[0]?.label ?? 'your top domain'}.</p>
+                <p className="text-[11.5px] text-white/85">Lean into your strengths, work on your develop areas, and use this report with a counsellor to plan your path.</p>
+              </div>
+              <Donut value={profile.overallScore} size={84} color="#fff" track="rgba(255,255,255,0.25)" caption="fit" />
             </div>
           </div>
         </PageFrame>

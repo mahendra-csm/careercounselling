@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Loader2, ShieldAlert, Search, Mail, FileText, CheckCircle2, AlertCircle,
-  LogOut, Users, Star, Send,
+  LogOut, Users, Star, Send, School, Plus,
 } from 'lucide-react';
 import Logo from '@/components/brand/Logo';
 import {
   ADMIN_EMAIL, getSession, signOut, listLeads, markLeadEmailed,
-  type FbSession, type LeadRecord,
+  listSchools, createSchool, updateLeadSchool,
+  type FbSession, type LeadRecord, type SchoolRecord,
 } from '@/lib/firebase';
 import { generateReportPdfBlob, blobToBase64 } from '@/lib/client-pdf';
 
@@ -24,6 +25,10 @@ export default function AdminPage() {
   const [send, setSend] = useState<Record<string, SendState>>({});
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [progress, setProgress] = useState<Record<string, string>>({});
+  const [schools, setSchools] = useState<SchoolRecord[]>([]);
+  const [schoolFilter, setSchoolFilter] = useState(''); // '' = all
+  const [newSchool, setNewSchool] = useState('');
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     const s = getSession();
@@ -31,19 +36,45 @@ export default function AdminPage() {
     if (s && s.email.toLowerCase() === ADMIN_EMAIL) {
       setAuthState('ok');
       listLeads(s).then((rows) => { setLeads(rows); setLoading(false); });
+      listSchools(s).then(setSchools);
     } else {
       setAuthState('denied');
       setLoading(false);
     }
   }, []);
 
+  // Every school name we know about: created schools + any seen on a lead.
+  const schoolNames = useMemo(() => {
+    const set = new Set<string>();
+    schools.forEach((s) => set.add(s.name));
+    leads.forEach((l) => { const v = String(l.school ?? '').trim(); if (v) set.add(v); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [schools, leads]);
+
+  const countFor = (name: string) => leads.filter((l) => String(l.school ?? '').trim() === name).length;
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return leads;
-    return leads.filter((l) =>
-      [l.name, l.email, l.phone, l.recipientEmail, l.class].some((v) => String(v ?? '').toLowerCase().includes(q))
-    );
-  }, [leads, query]);
+    return leads.filter((l) => {
+      if (schoolFilter && String(l.school ?? '').trim() !== schoolFilter) return false;
+      if (!q) return true;
+      return [l.name, l.email, l.phone, l.recipientEmail, l.class, l.school].some((v) => String(v ?? '').toLowerCase().includes(q));
+    });
+  }, [leads, query, schoolFilter]);
+
+  async function addSchool() {
+    const name = newSchool.trim();
+    if (!name || creating) return;
+    setCreating(true);
+    const ok = await createSchool(name, session);
+    if (ok) { setSchools((s) => [...s, { id: name, name }].filter((v, i, a) => a.findIndex((x) => x.name === v.name) === i)); setNewSchool(''); }
+    setCreating(false);
+  }
+
+  async function assignSchool(lead: LeadRecord, name: string) {
+    setLeads((rows) => rows.map((r) => (r.id === lead.id ? { ...r, school: name } : r)));
+    await updateLeadSchool(lead.id, name, session);
+  }
 
   const stats = useMemo(() => {
     const total = leads.length;
@@ -136,10 +167,38 @@ export default function AdminPage() {
           <Kpi icon={<Send className="w-4 h-4" />} label="Reports sent" value={String(stats.emailed)} />
         </div>
 
+        {/* schools */}
+        <div className="bg-white border border-line rounded-2xl shadow-sm p-4 mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <p className="text-sm font-bold text-ink flex items-center gap-1.5"><School className="w-4 h-4 text-red" /> Schools</p>
+            <div className="flex items-center gap-2">
+              <input value={newSchool} onChange={(e) => setNewSchool(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addSchool()}
+                placeholder="New school name" className="w-44 px-3 py-2 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+              <button onClick={addSchool} disabled={creating || !newSchool.trim()}
+                className="inline-flex items-center gap-1.5 bg-red text-white text-sm font-semibold px-3 py-2 rounded-xl shadow-glow disabled:opacity-50">
+                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Add school
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setSchoolFilter('')}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${schoolFilter === '' ? 'bg-red text-white border-red' : 'bg-bg text-ink-2 border-line hover:border-red-line'}`}>
+              All <span className="opacity-70">({leads.length})</span>
+            </button>
+            {schoolNames.map((name) => (
+              <button key={name} onClick={() => setSchoolFilter(name)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${schoolFilter === name ? 'bg-red text-white border-red' : 'bg-bg text-ink-2 border-line hover:border-red-line'}`}>
+                {name} <span className="opacity-70">({countFor(name)})</span>
+              </button>
+            ))}
+            {schoolNames.length === 0 && <span className="text-xs text-ink-4">No schools yet — add one, or they’ll appear as students submit.</span>}
+          </div>
+        </div>
+
         {/* search */}
         <div className="relative mb-4 max-w-sm">
           <Search className="w-4 h-4 text-ink-4 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, email, phone…"
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, email, phone, school…"
             className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-line bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
         </div>
 
@@ -155,6 +214,7 @@ export default function AdminPage() {
                   <tr className="bg-bg text-ink-3 text-left text-xs uppercase tracking-wide">
                     <th className="px-4 py-3 font-semibold">Student</th>
                     <th className="px-4 py-3 font-semibold">Contact</th>
+                    <th className="px-4 py-3 font-semibold">School</th>
                     <th className="px-4 py-3 font-semibold">Class</th>
                     <th className="px-4 py-3 font-semibold">Rating</th>
                     <th className="px-4 py-3 font-semibold">Done</th>
@@ -174,6 +234,16 @@ export default function AdminPage() {
                         <td className="px-4 py-3 text-ink-2">
                           <p>{String(l.email || '—')}</p>
                           <p className="text-xs text-ink-4">{String(l.phone || '')}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <select value={String(l.school ?? '')} onChange={(e) => assignSchool(l, e.target.value)}
+                            className="max-w-[150px] px-2 py-1.5 rounded-lg border border-line bg-white text-xs text-ink-2 focus:outline-none focus:ring-2 focus:ring-red/30">
+                            <option value="">— Unassigned —</option>
+                            {String(l.school ?? '').trim() && !schoolNames.includes(String(l.school).trim()) && (
+                              <option value={String(l.school)}>{String(l.school)}</option>
+                            )}
+                            {schoolNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                          </select>
                         </td>
                         <td className="px-4 py-3 text-ink-2">{String(l.class || '—')}</td>
                         <td className="px-4 py-3 text-ink-2">{l.rating ? `${l.rating}/10` : '—'}</td>

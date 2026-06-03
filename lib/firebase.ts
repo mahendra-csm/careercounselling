@@ -212,6 +212,55 @@ export async function listLeads(session: FbSession | null): Promise<LeadRecord[]
   return leads;
 }
 
+export interface SchoolRecord { id: string; name: string }
+
+/** Admin only: list schools the admin has created. */
+export async function listSchools(session: FbSession | null): Promise<SchoolRecord[]> {
+  if (!session) return [];
+  try {
+    const res = await fetch(`${FIRESTORE}/schools?pageSize=300`, { headers: { Authorization: `Bearer ${session.idToken}` } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const rows: SchoolRecord[] = (data.documents ?? []).map((doc: { name: string; fields?: Record<string, Record<string, unknown>> }) => ({
+      id: String(doc.name).split('/').pop() as string,
+      name: String(decodeFields(doc.fields).name ?? ''),
+    }));
+    return rows.filter((r) => r.name).sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
+}
+
+/** Admin only: create a school. */
+export async function createSchool(name: string, session: FbSession | null): Promise<boolean> {
+  if (!session || !name.trim()) return false;
+  try {
+    const res = await fetch(`${FIRESTORE}/schools?key=${firebaseConfig.apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.idToken}` },
+      body: JSON.stringify({ fields: { name: { stringValue: name.trim() }, createdAt: { stringValue: new Date().toISOString() } } }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Admin only: assign/reassign a lead to a school. */
+export async function updateLeadSchool(id: string, school: string, session: FbSession | null): Promise<boolean> {
+  if (!session) return false;
+  try {
+    const res = await fetch(`${FIRESTORE}/leads/${id}?updateMask.fieldPaths=school&key=${firebaseConfig.apiKey}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.idToken}` },
+      body: JSON.stringify({ fields: { school: { stringValue: school } } }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Admin only: mark a lead's report as emailed. */
 export async function markLeadEmailed(id: string, session: FbSession | null): Promise<boolean> {
   if (!session) return false;
