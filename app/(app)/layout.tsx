@@ -12,6 +12,7 @@ import {
   FileText,
   Library,
   Rocket,
+  Briefcase,
   Settings,
   LogOut,
   Menu,
@@ -30,6 +31,7 @@ const NAV = [
   { href: '/dashboard/abroad-applications', icon: Plane, label: 'Abroad Applications' },
   { href: '/dashboard/exams', icon: FileText, label: 'Exams' },
   { href: '/dashboard/career-library', icon: Library, label: 'Career Library' },
+  { href: '/dashboard/internships', icon: Briefcase, label: 'Virtual Internships' },
   { href: '/dashboard/career-boosters', icon: Rocket, label: 'Career Boosters' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];

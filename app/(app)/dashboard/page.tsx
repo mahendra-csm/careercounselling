@@ -24,7 +24,7 @@ const MODULES: { title: string; desc: string; icon: LucideIcon; href: string }[]
   { title: 'Career Boosters', desc: 'Best programs picked from industry — all in your Career Lab.', icon: Rocket, href: '/dashboard/career-boosters' },
   { title: 'Online Courses', desc: 'Unlimited access to online courses, skills and personal development.', icon: BookOpen, href: '/dashboard/career-boosters' },
   { title: 'Scholarships', desc: 'Up to 100% scholarships for deserving school and college students.', icon: Award, href: '/dashboard/career-boosters' },
-  { title: 'Virtual Internships', desc: '150+ virtual internships with Fortune 500 brands — totally free.', icon: Briefcase, href: '/dashboard/career-boosters' },
+  { title: 'Virtual Internships', desc: 'Free virtual internships & job simulations for Class 6–12 — filter by your class.', icon: Briefcase, href: '/dashboard/internships' },
 ];
 
 export default function DashboardPage() {
