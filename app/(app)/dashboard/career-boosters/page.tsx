@@ -7,7 +7,7 @@ import { LEARN_PATHS, SCHOLARSHIPS } from '@/constants/catalog';
 
 export default function Page() {
   return (
-    <ModuleShell title="Career Boosters" icon={Rocket}
+    <ModuleShell title="Career Boosters" icon={Rocket} accent="amber"
       description="Free, step-by-step learning paths, scholarships and virtual internships to get ahead — every resource below is free and links to the official source.">
 
       {/* Learn paths */}

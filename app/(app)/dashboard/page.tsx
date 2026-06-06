@@ -5,30 +5,41 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   ArrowRight, Loader2, MessageCircle, Phone, Mail, Sparkles,
-  Building2, Globe2, Plane, FileText, Library, Rocket,
-  GraduationCap, Award, Briefcase, BookOpen,
-  type LucideIcon,
+  Building2, Globe2, Plane, FileText, Library, Rocket, Search,
+  Briefcase, GraduationCap, TrendingUp, type LucideIcon,
 } from 'lucide-react';
 import { getSession } from '@/lib/firebase';
 import { getLastReportId, getLocalReport } from '@/lib/report-store';
 import type { PsychometricProfile } from '@/lib/psychometric';
 import AssessmentResults from '@/components/dashboard/AssessmentResults';
 
-const MODULES: { title: string; desc: string; icon: LucideIcon; href: string }[] = [
-  { title: 'India Colleges', desc: 'Access 10,000+ Indian colleges and 1.5 Lac+ courses with admission predictions.', icon: Building2, href: '/dashboard/india-colleges' },
-  { title: 'Online India Admissions', desc: 'Your trusted gateway to India’s top colleges — explore, compare and secure admissions.', icon: GraduationCap, href: '/dashboard/india-colleges' },
-  { title: 'Abroad Colleges', desc: '8,000+ international universities across 22+ countries with full details.', icon: Globe2, href: '/dashboard/abroad-colleges' },
-  { title: 'Abroad Applications', desc: 'Study-abroad profiling in 15 min with SOP and visa assistance.', icon: Plane, href: '/dashboard/abroad-applications' },
-  { title: 'Exams', desc: '1,400+ entrance test details for UG, PG and professional courses.', icon: FileText, href: '/dashboard/exams' },
-  { title: 'Career Library', desc: '3,000+ career options with guidance and education plans.', icon: Library, href: '/dashboard/career-library' },
-  { title: 'Career Boosters', desc: 'Best programs picked from industry — all in your Career Lab.', icon: Rocket, href: '/dashboard/career-boosters' },
-  { title: 'Online Courses', desc: 'Unlimited access to online courses, skills and personal development.', icon: BookOpen, href: '/dashboard/career-boosters' },
-  { title: 'Scholarships', desc: 'Up to 100% scholarships for deserving school and college students.', icon: Award, href: '/dashboard/career-boosters' },
-  { title: 'Virtual Internships', desc: 'Free virtual internships & job simulations for Class 6–12 — filter by your class.', icon: Briefcase, href: '/dashboard/internships' },
+type Module = { title: string; desc: string; icon: LucideIcon; href: string; from: string; to: string };
+
+const MODULES: Module[] = [
+  { title: 'Virtual Internships', desc: 'Free internships & job simulations for Class 6–12.', icon: Briefcase, href: '/dashboard/internships', from: '#2D7FF0', to: '#1B4F9B' },
+  { title: 'Career Library', desc: '3,000+ careers with steps & free resources.', icon: Library, href: '/dashboard/career-library', from: '#9B51E0', to: '#5B2E94' },
+  { title: 'Career Boosters', desc: 'Free learn paths, scholarships & courses.', icon: Rocket, href: '/dashboard/career-boosters', from: '#F59E0B', to: '#B45309' },
+  { title: 'India Colleges', desc: '10,000+ colleges with admission insights.', icon: Building2, href: '/dashboard/india-colleges', from: '#27AE60', to: '#176B3A' },
+  { title: 'Abroad Colleges', desc: '8,000+ universities across 22+ countries.', icon: Globe2, href: '/dashboard/abroad-colleges', from: '#11998E', to: '#0A5E58' },
+  { title: 'Abroad Applications', desc: 'Study-abroad profiling, SOP & visa help.', icon: Plane, href: '/dashboard/abroad-applications', from: '#6366F1', to: '#3B2E8F' },
+  { title: 'Entrance Exams', desc: '1,400+ entrance test details & dates.', icon: FileText, href: '/dashboard/exams', from: '#EB5757', to: '#9B1B22' },
+  { title: 'Career Analysis', desc: 'Revisit your psychometric profile.', icon: Search, href: '/dashboard/career-analysis', from: '#2D9CDB', to: '#1B6491' },
 ];
 
+function Ring({ value }: { value: number }) {
+  const r = 34, c = 2 * Math.PI * r, off = c - (Math.max(0, Math.min(100, value)) / 100) * c;
+  return (
+    <svg width={88} height={88} viewBox="0 0 84 84" className="shrink-0">
+      <circle cx="42" cy="42" r={r} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="8" />
+      <circle cx="42" cy="42" r={r} fill="none" stroke="#fff" strokeWidth="8" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} transform="rotate(-90 42 42)" />
+      <text x="42" y="40" textAnchor="middle" dominantBaseline="central" fill="#fff" style={{ fontSize: 20, fontWeight: 800 }}>{value}</text>
+      <text x="42" y="56" textAnchor="middle" dominantBaseline="central" fill="rgba(255,255,255,0.8)" style={{ fontSize: 8, letterSpacing: '0.1em' }}>FIT</text>
+    </svg>
+  );
+}
+
 export default function DashboardPage() {
-  const [name, setName] = useState<string>('');
+  const [name, setName] = useState('');
   const [report, setReport] = useState<PsychometricProfile | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,121 +57,124 @@ export default function DashboardPage() {
 
   const firstName = (name || report?.name || 'there').split(' ')[0];
   const hasReport = Boolean(report);
-  const profilingPercent = report ? Math.min(100, report.overallScore) : 0;
+  const fit = report ? Math.min(100, report.overallScore) : 0;
   const reportHref = reportId ? `/report/view?id=${reportId}` : '/assessment';
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-7 h-7 text-red animate-spin" />
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-7 h-7 text-red animate-spin" /></div>;
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h1 className="text-2xl font-extrabold text-ink mb-1">Hi {firstName} 👋</h1>
-        <p className="text-ink-3 text-sm">Your career command center — assessments, colleges, exams and boosters in one place.</p>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      {/* ---- Hero ---- */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-3xl p-6 sm:p-8 text-white mb-6"
+        style={{ background: 'linear-gradient(125deg, #E0242E 0%, #7e22ce 60%, #3b0764 100%)' }}>
+        <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.12]" aria-hidden>
+          <defs><pattern id="hero-dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.6" fill="#fff" /></pattern></defs>
+          <rect width="100%" height="100%" fill="url(#hero-dots)" />
+        </svg>
+        <div className="pointer-events-none absolute -right-10 -top-12 h-48 w-48 rounded-full bg-white/10" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center gap-5">
+          <div className="flex-1">
+            <p className="text-white/80 text-sm font-medium">Welcome back</p>
+            <h1 className="text-3xl font-extrabold mt-0.5">Hi {firstName} 👋</h1>
+            <p className="text-white/85 text-sm mt-1.5 max-w-lg">
+              {hasReport
+                ? 'Your career command centre — your report, colleges, exams, internships and boosters in one place.'
+                : 'Discover careers that fit you. Take the assessment to unlock your personalised report and roadmap.'}
+            </p>
+            <div className="flex flex-wrap gap-2.5 mt-4">
+              {hasReport ? (
+                <>
+                  <Link href={reportHref} className="inline-flex items-center gap-2 bg-white text-red text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg hover:bg-white/90">
+                    View career report <ArrowRight className="w-4 h-4" />
+                  </Link>
+                  <a href="https://wa.me/918977760443" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-white/15 text-white text-sm font-semibold px-4 py-2.5 rounded-xl backdrop-blur hover:bg-white/25">
+                    <MessageCircle className="w-4 h-4" /> Talk to a counsellor
+                  </a>
+                </>
+              ) : (
+                <Link href="/assessment" className="inline-flex items-center gap-2 bg-white text-red text-sm font-bold px-5 py-2.5 rounded-xl shadow-lg hover:bg-white/90">
+                  Start career assessment <ArrowRight className="w-4 h-4" />
+                </Link>
+              )}
+            </div>
+          </div>
+          {hasReport && (
+            <div className="flex items-center gap-4 sm:border-l sm:border-white/20 sm:pl-6">
+              <Ring value={fit} />
+              <div className="text-sm">
+                <p className="font-bold leading-tight">{report?.matchLabel ?? 'Career fit'}</p>
+                <p className="text-white/75 text-xs mt-0.5">Top domain</p>
+                <p className="font-semibold text-[13px] leading-tight">{report?.topCareers?.[0]?.cluster ?? report?.matchLabel ?? '—'}</p>
+              </div>
+            </div>
+          )}
+        </div>
       </motion.div>
 
-      {/* Career profiling + counselling */}
-      <div className="grid lg:grid-cols-3 gap-5 mb-6">
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-          className="lg:col-span-2 bg-white border border-line rounded-2xl shadow-sm overflow-hidden">
-          <div className="bg-red text-white px-5 py-3 font-bold text-sm">Career Profiling</div>
-          <div className="p-5">
-            <p className="text-sm font-semibold text-ink-2 mb-2">
-              {hasReport ? `Career profile ready — ${report?.matchLabel}` : 'Career planning assessment'}
-            </p>
-            <div className="h-2.5 bg-line-2 rounded-full overflow-hidden mb-1">
-              <motion.div className="h-full bg-success rounded-full"
-                initial={{ width: 0 }} animate={{ width: `${hasReport ? profilingPercent : 0}%` }}
-                transition={{ duration: 1, ease: 'easeOut' }} />
-            </div>
-            <p className="text-xs text-ink-4 mb-4">{hasReport ? `${profilingPercent}% complete` : 'Not started yet'}</p>
-
-            {hasReport ? (
-              <div className="flex flex-wrap gap-3">
-                <Link href={reportHref} className="inline-flex items-center gap-2 bg-red text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-glow">
-                  View career report <ArrowRight className="w-4 h-4" />
-                </Link>
-                <a href="https://wa.me/918977760443" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 border border-line text-ink-2 text-sm font-medium px-4 py-2.5 rounded-xl hover:bg-bg">
-                  <MessageCircle className="w-4 h-4 text-success" /> Talk to a counsellor
-                </a>
-              </div>
-            ) : (
-              <Link href="/assessment" className="inline-flex items-center gap-2 bg-red text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-glow">
-                Start career assessment <ArrowRight className="w-4 h-4" />
-              </Link>
-            )}
-          </div>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          className="bg-white border border-line rounded-2xl shadow-sm overflow-hidden">
-          <div className="bg-ink text-white px-5 py-3">
-            <p className="font-bold text-sm">Career Counselling Center</p>
-            <p className="text-xs text-white/60">Connect with a counsellor</p>
-          </div>
-          <div className="grid grid-cols-3 divide-x divide-line">
-            <a href="https://wa.me/918977760443" target="_blank" rel="noreferrer" className="flex flex-col items-center gap-1.5 py-4 hover:bg-bg transition-colors">
-              <MessageCircle className="w-5 h-5 text-success" />
-              <span className="text-xs font-semibold text-ink-2">WhatsApp</span>
-            </a>
-            <a href="tel:8977760443" className="flex flex-col items-center gap-1.5 py-4 hover:bg-bg transition-colors">
-              <Phone className="w-5 h-5 text-blue-500" />
-              <span className="text-xs font-semibold text-ink-2">Call us</span>
-            </a>
-            <a href="mailto:support@onegrasp.com" className="flex flex-col items-center gap-1.5 py-4 hover:bg-bg transition-colors">
-              <Mail className="w-5 h-5 text-red" />
-              <span className="text-xs font-semibold text-ink-2">Mail us</span>
-            </a>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Mindler-style assessment results — only once a report exists */}
+      {/* ---- Assessment results (when a report exists) ---- */}
       {hasReport && report && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-8">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="mb-8">
           <AssessmentResults profile={report} reportHref={reportHref} />
         </motion.div>
       )}
 
-      {/* Ask anything banner */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-        className="rounded-2xl p-6 mb-8 text-center text-white relative overflow-hidden"
-        style={{ background: 'linear-gradient(120deg, #3b0764, #7e22ce, #E0242E)' }}>
-        <h2 className="text-2xl font-extrabold mb-3">Have a question about your future?</h2>
-        {hasReport ? (
-          <a href="https://wa.me/918977760443" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-white text-red font-bold px-6 py-3 rounded-full shadow-lg">
-            <Sparkles className="w-4 h-4" /> Ask a counsellor
-          </a>
-        ) : (
-          <Link href="/assessment" className="inline-flex items-center gap-2 bg-white text-red font-bold px-6 py-3 rounded-full shadow-lg">
-            <Sparkles className="w-4 h-4" /> Start your assessment
-          </Link>
-        )}
-      </motion.div>
-
-      {/* Module grid */}
-      <h3 className="font-bold text-ink mb-4">Explore your Career Lab</h3>
-      <div className="grid sm:grid-cols-2 gap-4">
-        {MODULES.map(({ title, desc, icon: Icon, href }, i) => (
-          <motion.div key={title} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 * i }}>
-            <Link href={href} className="flex items-start gap-4 bg-white border border-line rounded-2xl p-5 shadow-sm hover:border-red-line hover:shadow-md transition-all group h-full">
-              <div className="w-11 h-11 rounded-xl bg-red-soft flex items-center justify-center shrink-0">
-                <Icon className="w-5 h-5 text-red" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-ink text-sm mb-0.5">{title}</p>
-                <p className="text-xs text-ink-4 leading-relaxed">{desc}</p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-ink-4 group-hover:text-red transition-colors shrink-0" />
-            </Link>
-          </motion.div>
-        ))}
+      {/* ---- Career Lab grid ---- */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-extrabold text-ink text-lg">Explore your Career Lab</h2>
+        <span className="text-xs font-semibold text-ink-4 hidden sm:flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" /> Updated for 2026</span>
       </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        {MODULES.map((m, i) => {
+          const Icon = m.icon;
+          return (
+            <motion.div key={m.title} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 * i }}>
+              <Link href={m.href}
+                className="group flex items-start gap-4 bg-white border border-line rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm" style={{ background: `linear-gradient(135deg, ${m.from}, ${m.to})` }}>
+                  <Icon className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-ink text-[15px] leading-tight">{m.title}</p>
+                  <p className="text-xs text-ink-4 leading-relaxed mt-1">{m.desc}</p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-ink-4 group-hover:text-red group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
+              </Link>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* ---- Counselling ---- */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+        className="rounded-3xl border border-line bg-white shadow-sm overflow-hidden">
+        <div className="grid sm:grid-cols-[1.3fr_1fr]">
+          <div className="p-6 sm:p-7">
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold text-red bg-red-soft px-3 py-1 rounded-full mb-3">
+              <GraduationCap className="w-3.5 h-3.5" /> Career Counselling Centre
+            </div>
+            <h3 className="text-xl font-extrabold text-ink mb-1.5">Have a question about your future?</h3>
+            <p className="text-sm text-ink-3 mb-4 max-w-md">Talk to a OneGrasp counsellor — we&apos;ll help you read your report, pick subjects, and plan your next steps.</p>
+            <a href="https://wa.me/918977760443" target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-2 bg-red text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow-glow">
+              <Sparkles className="w-4 h-4" /> Ask a counsellor
+            </a>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-1 border-t sm:border-t-0 sm:border-l border-line divide-x sm:divide-x-0 sm:divide-y divide-line">
+            <a href="https://wa.me/918977760443" target="_blank" rel="noreferrer" className="flex items-center justify-center sm:justify-start gap-2.5 p-4 hover:bg-bg transition-colors">
+              <MessageCircle className="w-5 h-5 text-success shrink-0" /><span className="text-xs sm:text-sm font-semibold text-ink-2 hidden sm:inline">WhatsApp</span>
+            </a>
+            <a href="tel:8977760443" className="flex items-center justify-center sm:justify-start gap-2.5 p-4 hover:bg-bg transition-colors">
+              <Phone className="w-5 h-5 text-blue-500 shrink-0" /><span className="text-xs sm:text-sm font-semibold text-ink-2 hidden sm:inline">8977760443</span>
+            </a>
+            <a href="mailto:support@onegrasp.com" className="flex items-center justify-center sm:justify-start gap-2.5 p-4 hover:bg-bg transition-colors">
+              <Mail className="w-5 h-5 text-red shrink-0" /><span className="text-xs sm:text-sm font-semibold text-ink-2 hidden sm:inline">support@onegrasp.com</span>
+            </a>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 }

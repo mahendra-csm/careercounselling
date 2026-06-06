@@ -11,7 +11,7 @@ export default function Page() {
     (c.title + c.cluster + c.skills.join(' ')).toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <ModuleShell title="Career Library" icon={Library}
+    <ModuleShell title="Career Library" icon={Library} accent="violet"
       description="Explore 3,000+ careers. Below is a curated set with what the work involves, key skills, the education path and indicative salary.">
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search careers (e.g. doctor, designer, finance)…"
         className="w-full mb-4 px-4 py-2.5 rounded-xl border border-line bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
