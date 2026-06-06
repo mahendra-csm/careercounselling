@@ -27,6 +27,39 @@ export interface FbSession {
   email: string;
   name: string;
   emailVerified: boolean;
+  /** Epoch ms when the idToken expires (Firebase ID tokens last 1 hour). */
+  expiresAt?: number;
+}
+
+/**
+ * Returns a session with a non-expired idToken, refreshing it via the refresh
+ * token when needed. Firebase ID tokens expire after 1 hour, so a long exam can
+ * outlive the token created at sign-up — without this, the final Firestore
+ * write (report/lead) would fail with a permission error.
+ */
+export async function ensureFreshSession(session: FbSession | null): Promise<FbSession | null> {
+  if (!session) return null;
+  // Still valid for >2 minutes → use as-is.
+  if (session.expiresAt && session.expiresAt - Date.now() > 120000) return session;
+  try {
+    const res = await fetch(`https://securetoken.googleapis.com/v1/token?key=${firebaseConfig.apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(session.refreshToken)}`,
+    });
+    if (!res.ok) return session;
+    const data = await res.json();
+    const fresh: FbSession = {
+      ...session,
+      idToken: data.id_token ?? session.idToken,
+      refreshToken: data.refresh_token ?? session.refreshToken,
+      expiresAt: Date.now() + Number(data.expires_in ?? 3600) * 1000,
+    };
+    setSession(fresh);
+    return fresh;
+  } catch {
+    return session;
+  }
 }
 
 // ---------- session (localStorage) ----------
@@ -67,7 +100,7 @@ async function identityCall(action: string, body: Record<string, unknown>) {
     err.code = code;
     throw err;
   }
-  return data as { idToken: string; refreshToken: string; localId: string; email: string; displayName?: string; emailVerified?: boolean };
+  return data as { idToken: string; refreshToken: string; localId: string; email: string; displayName?: string; emailVerified?: boolean; expiresIn?: string };
 }
 
 function friendlyAuthError(code: string) {
@@ -95,6 +128,7 @@ export async function signUp(email: string, password: string, name?: string): Pr
   const session: FbSession = {
     idToken: data.idToken, refreshToken: data.refreshToken, uid: data.localId,
     email: data.email, name: name || data.email.split('@')[0], emailVerified: true,
+    expiresAt: Date.now() + Number(data.expiresIn ?? 3600) * 1000,
   };
   setSession(session);
   return session;
@@ -107,6 +141,7 @@ export async function signIn(email: string, password: string): Promise<FbSession
     idToken: data.idToken, refreshToken: data.refreshToken, uid: data.localId,
     email: data.email, name: data.displayName || data.email.split('@')[0],
     emailVerified: true,
+    expiresAt: Date.now() + Number(data.expiresIn ?? 3600) * 1000,
   };
   setSession(session);
   return session;
@@ -127,14 +162,15 @@ function encodeFields(obj: Record<string, string | number>) {
 
 /** Save a report. Returns the document id. Falls back silently if Firestore denies. */
 export async function saveReport(id: string, profile: unknown, session: FbSession | null): Promise<boolean> {
-  if (!session) return false;
+  const s = await ensureFreshSession(session);
+  if (!s) return false;
   try {
     const res = await fetch(`${FIRESTORE}/reports?documentId=${id}&key=${firebaseConfig.apiKey}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.idToken}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.idToken}` },
       body: JSON.stringify({
         fields: encodeFields({
-          uid: session.uid,
+          uid: s.uid,
           data: JSON.stringify(profile),
           createdAt: new Date().toISOString(),
         }),
@@ -152,15 +188,16 @@ export async function saveLead(
   session: FbSession | null
 ): Promise<boolean> {
   try {
+    const s = await ensureFreshSession(session);
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (session) headers.Authorization = `Bearer ${session.idToken}`;
+    if (s) headers.Authorization = `Bearer ${s.idToken}`;
     const res = await fetch(`${FIRESTORE}/leads?key=${firebaseConfig.apiKey}`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
         fields: encodeFields({
           ...lead,
-          uid: session?.uid ?? 'anon',
+          uid: s?.uid ?? 'anon',
           createdAt: new Date().toISOString(),
         }),
       }),
@@ -191,13 +228,14 @@ function decodeFields(fields: Record<string, Record<string, unknown>> = {}): Rec
 
 /** Admin only: list every lead. Firestore rules restrict reads to ADMIN_EMAIL. */
 export async function listLeads(session: FbSession | null): Promise<LeadRecord[]> {
-  if (!session) return [];
+  const s = await ensureFreshSession(session);
+  if (!s) return [];
   const leads: LeadRecord[] = [];
   let pageToken = '';
   try {
     do {
       const url = `${FIRESTORE}/leads?pageSize=300&orderBy=createdAt%20desc${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${session.idToken}` } });
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${s.idToken}` } });
       if (!res.ok) break;
       const data = await res.json();
       for (const doc of data.documents ?? []) {
@@ -216,9 +254,10 @@ export interface SchoolRecord { id: string; name: string }
 
 /** Admin only: list schools the admin has created. */
 export async function listSchools(session: FbSession | null): Promise<SchoolRecord[]> {
-  if (!session) return [];
+  const s = await ensureFreshSession(session);
+  if (!s) return [];
   try {
-    const res = await fetch(`${FIRESTORE}/schools?pageSize=300`, { headers: { Authorization: `Bearer ${session.idToken}` } });
+    const res = await fetch(`${FIRESTORE}/schools?pageSize=300`, { headers: { Authorization: `Bearer ${s.idToken}` } });
     if (!res.ok) return [];
     const data = await res.json();
     const rows: SchoolRecord[] = (data.documents ?? []).map((doc: { name: string; fields?: Record<string, Record<string, unknown>> }) => ({
@@ -233,11 +272,13 @@ export async function listSchools(session: FbSession | null): Promise<SchoolReco
 
 /** Admin only: create a school. */
 export async function createSchool(name: string, session: FbSession | null): Promise<boolean> {
-  if (!session || !name.trim()) return false;
+  if (!name.trim()) return false;
+  const s = await ensureFreshSession(session);
+  if (!s) return false;
   try {
     const res = await fetch(`${FIRESTORE}/schools?key=${firebaseConfig.apiKey}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.idToken}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.idToken}` },
       body: JSON.stringify({ fields: { name: { stringValue: name.trim() }, createdAt: { stringValue: new Date().toISOString() } } }),
     });
     return res.ok;
@@ -248,11 +289,12 @@ export async function createSchool(name: string, session: FbSession | null): Pro
 
 /** Admin only: assign/reassign a lead to a school. */
 export async function updateLeadSchool(id: string, school: string, session: FbSession | null): Promise<boolean> {
-  if (!session) return false;
+  const s = await ensureFreshSession(session);
+  if (!s) return false;
   try {
     const res = await fetch(`${FIRESTORE}/leads/${id}?updateMask.fieldPaths=school&key=${firebaseConfig.apiKey}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.idToken}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.idToken}` },
       body: JSON.stringify({ fields: { school: { stringValue: school } } }),
     });
     return res.ok;
@@ -263,13 +305,14 @@ export async function updateLeadSchool(id: string, school: string, session: FbSe
 
 /** Admin only: mark a lead's report as emailed. */
 export async function markLeadEmailed(id: string, session: FbSession | null): Promise<boolean> {
-  if (!session) return false;
+  const s = await ensureFreshSession(session);
+  if (!s) return false;
   try {
     const res = await fetch(
       `${FIRESTORE}/leads/${id}?updateMask.fieldPaths=emailed&updateMask.fieldPaths=emailedAt&key=${firebaseConfig.apiKey}`,
       {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.idToken}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.idToken}` },
         body: JSON.stringify({
           fields: { emailed: { booleanValue: true }, emailedAt: { stringValue: new Date().toISOString() } },
         }),
