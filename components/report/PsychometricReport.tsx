@@ -21,7 +21,7 @@ import type {
   SectionScore,
 } from '@/lib/psychometric';
 
-const TOTAL_PAGES = 23;
+const TOTAL_PAGES = 28;
 
 /* Mindler-style SaaS-clean palette. */
 const C = {
@@ -748,6 +748,11 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
   };
   const eqDetail = chunk(profile.eq.map((e) => ({ label: e.label, percent: e.percent })), 2);
   const intelDetail = chunk((profile.intelligences ?? []).slice(0, 6).map((i) => ({ label: trimIntelligenceLabel(i.label), percent: i.percent })), 2);
+  const persDetail = chunk(traitLetters.map((l, i) => ({
+    label: TRAIT_NAMES[l] ?? l,
+    percent: profile.mbtiAxes[i] ? Math.max(profile.mbtiAxes[i].leftPct, profile.mbtiAxes[i].rightPct) : 60,
+  })), 2);
+  const skillDetail = chunk(profile.skills.slice(0, 6).map((s) => ({ label: trimSkillLabel(s.label), percent: s.percent })), 2);
 
   // top domain "career match" fit bars
   const topDomain = domains[0];
@@ -1258,6 +1263,18 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
         {intelDetail.map((traits, i) => (
           <DetailPage key={`ind-${i}`} page={18 + eqDetail.length + i} kicker="Intelligences · in detail" name={profile.name}
             theme={SECTION_THEME.intelligences} title="Your Intelligences in detail" traits={traits} />
+        ))}
+
+        {/* ===== PERSONALITY IN DETAIL ===== */}
+        {persDetail.map((traits, i) => (
+          <DetailPage key={`pd-${i}`} page={18 + eqDetail.length + intelDetail.length + i} kicker="Personality · in detail" name={profile.name}
+            theme={SECTION_THEME.personality} title="Your Personality in detail" traits={traits} />
+        ))}
+
+        {/* ===== APTITUDE / ABILITIES IN DETAIL ===== */}
+        {skillDetail.map((traits, i) => (
+          <DetailPage key={`sd-${i}`} page={18 + eqDetail.length + intelDetail.length + persDetail.length + i} kicker="Aptitude · in detail" name={profile.name}
+            theme={SECTION_THEME.analytical} title="Your Aptitude in detail" traits={traits} />
         ))}
       </div>
     </div>
