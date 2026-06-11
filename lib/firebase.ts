@@ -182,24 +182,23 @@ export async function saveReport(id: string, profile: unknown, session: FbSessio
   }
 }
 
-/** Save a student lead/record (all collected info + report pointer). Best-effort. */
+/**
+ * Save a student lead (all collected info, both forms). Upserts ONE document per
+ * student (doc id = their uid) so the pre-exam and post-exam saves merge into a
+ * single record with NO duplicates. Best-effort.
+ */
 export async function saveLead(
   lead: Record<string, string | number>,
   session: FbSession | null
 ): Promise<boolean> {
   try {
     const s = await ensureFreshSession(session);
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (s) headers.Authorization = `Bearer ${s.idToken}`;
-    const res = await fetch(`${FIRESTORE}/leads?key=${firebaseConfig.apiKey}`, {
-      method: 'POST',
-      headers,
+    if (!s) return false;
+    const res = await fetch(`${FIRESTORE}/leads/${s.uid}?key=${firebaseConfig.apiKey}`, {
+      method: 'PATCH', // PATCH on a missing doc creates it; on an existing one updates it
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.idToken}` },
       body: JSON.stringify({
-        fields: encodeFields({
-          ...lead,
-          uid: s?.uid ?? 'anon',
-          createdAt: new Date().toISOString(),
-        }),
+        fields: encodeFields({ ...lead, uid: s.uid, updatedAt: new Date().toISOString() }),
       }),
     });
     return res.ok;
@@ -234,7 +233,7 @@ export async function listLeads(session: FbSession | null): Promise<LeadRecord[]
   let pageToken = '';
   try {
     do {
-      const url = `${FIRESTORE}/leads?pageSize=300&orderBy=createdAt%20desc${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+      const url = `${FIRESTORE}/leads?pageSize=300${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${s.idToken}` } });
       if (!res.ok) break;
       const data = await res.json();
@@ -247,6 +246,8 @@ export async function listLeads(session: FbSession | null): Promise<LeadRecord[]
   } catch {
     /* return whatever we collected */
   }
+  // Newest first (by Firestore createTime — no index needed).
+  leads.sort((a, b) => String(b.createTime ?? '').localeCompare(String(a.createTime ?? '')));
   return leads;
 }
 

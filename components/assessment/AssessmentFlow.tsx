@@ -321,6 +321,7 @@ export default function AssessmentFlow() {
     setAuthBusy(true);
     try {
       await signUp(email.trim(), password.trim(), name.trim());
+      void persistLead(); // capture the pre-exam details now (upsert by uid)
       setPhase(3);
     } catch (err) {
       const code = (err as { code?: string } | null)?.code ?? '';
@@ -328,6 +329,7 @@ export default function AssessmentFlow() {
         // Email already registered — confirm the password matches by signing in.
         try {
           await signIn(email.trim(), password.trim());
+          void persistLead();
           setPhase(3);
         } catch {
           setAuthError('This email is already registered. Enter the password you set earlier, or sign in instead.');
