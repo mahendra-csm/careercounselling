@@ -317,7 +317,18 @@ export default function AssessmentFlow() {
   // are a working login and surfaces any problem before the exam starts.
   const startWithAccount = async () => {
     setAuthError('');
-    if (getSession()) { setPhase(3); return; } // already signed in
+    const entered = email.trim().toLowerCase();
+    const existing = getSession();
+    // Same person already signed in → reuse. Otherwise clear any leftover
+    // session (shared computer / previous student / admin) so we ALWAYS create
+    // or sign in the account for THIS email — otherwise the new student's email
+    // never gets registered and they can't log in later.
+    if (existing && existing.email.toLowerCase() === entered) {
+      void persistLead();
+      setPhase(3);
+      return;
+    }
+    if (existing) signOut();
     setAuthBusy(true);
     try {
       await signUp(email.trim(), password.trim(), name.trim());
