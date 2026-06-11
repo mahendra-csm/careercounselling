@@ -13,6 +13,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import Logo from '@/components/brand/Logo';
 import { MBTI_DESC } from '@/lib/psychometric';
+import { detailFor, scale9 } from '@/lib/report-detail';
 import type {
   AnalyticalBreakdown,
   DomainFitment,
@@ -20,7 +21,7 @@ import type {
   SectionScore,
 } from '@/lib/psychometric';
 
-const TOTAL_PAGES = 16;
+const TOTAL_PAGES = 23;
 
 /* Mindler-style SaaS-clean palette. */
 const C = {
@@ -613,6 +614,72 @@ function DomainFitmentCard({ domain, rank, profile }: { domain: DomainFitment; r
   );
 }
 
+/** 1–9 stanine-style indicator (where the score sits on a 1–9 band). */
+function ScaleNine({ value, color }: { value: number; color: string }) {
+  return (
+    <div className="flex gap-1">
+      {Array.from({ length: 9 }).map((_, i) => {
+        const n = i + 1; const on = n === value;
+        return (
+          <span key={n} className="flex h-6 w-6 items-center justify-center rounded-md border text-[11px] font-bold"
+            style={{ borderColor: C.line, background: on ? color : '#fff', color: on ? '#fff' : C.muted }}>{n}</span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Per-trait "in detail" card: 1–9 scale + Meaning / Expert Analysis / Development Plan. */
+function TraitDetailCard({ label, percent, theme }: { label: string; percent: number; theme: SectionTheme }) {
+  const d = detailFor(label, percent);
+  const Icon = theme.icon;
+  return (
+    <div className="overflow-hidden rounded-2xl border" style={{ borderColor: C.line }}>
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: theme.soft, color: theme.color }}><Icon style={{ width: 18, height: 18 }} /></span>
+          <p className="text-[15px] font-bold" style={{ color: C.ink }}>{label}</p>
+        </div>
+        <ScaleNine value={scale9(percent)} color={theme.color} />
+      </div>
+      <div className="grid grid-cols-2 gap-px" style={{ background: C.line }}>
+        <div className="bg-white">
+          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white" style={{ background: theme.color }}>Meaning</div>
+          <p className="px-3 py-2.5 text-[11.5px] leading-5" style={{ color: C.body }}>{d.meaning}</p>
+        </div>
+        <div className="bg-white">
+          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white" style={{ background: theme.color }}>Expert Analysis</div>
+          <p className="px-3 py-2.5 text-[11.5px] leading-5" style={{ color: C.body }}>{d.analysis}</p>
+        </div>
+      </div>
+      <div className="border-t" style={{ borderColor: C.line }}>
+        <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white" style={{ background: theme.deep }}>Development Plan</div>
+        <ul className="space-y-1 px-3 py-2.5">
+          {d.develop.map((t) => (
+            <li key={t} className="flex gap-2 text-[11.5px] leading-5" style={{ color: C.body }}>
+              <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: theme.color }} /><span>{t}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function DetailPage({ page, kicker, name, theme, title, traits }: {
+  page: number; kicker: string; name: string; theme: SectionTheme; title: string;
+  traits: { label: string; percent: number }[];
+}) {
+  return (
+    <PageFrame page={page} kicker={kicker} name={name}>
+      <div className="flex h-full flex-col gap-4">
+        <div><Eyebrow color={theme.color}>In detail</Eyebrow><h2 className="mt-1 text-[24px] font-extrabold" style={{ color: C.ink }}>{title}</h2></div>
+        {traits.map((t) => <TraitDetailCard key={t.label} label={t.label} percent={t.percent} theme={theme} />)}
+      </div>
+    </PageFrame>
+  );
+}
+
 function PageFrame({ page, kicker, name, children }: { page: number; kicker: string; name: string; children: ReactNode }) {
   return (
     <section className="a4-page mx-auto flex flex-col overflow-hidden bg-white" style={{ width: '210mm', height: '297mm', breakBefore: page > 1 ? 'page' : 'auto' }}>
@@ -672,6 +739,15 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
   const traitLetters = (profile.mbtiType || '').split('');
   const streamDomains = domains.slice(0, 2).map((d) => ({ domain: d, stream: DOMAIN_STREAMS[d.key] })).filter((x) => x.stream);
   const SkillRingColors = ['#2D7FF0', '#27AE60', '#11998E', '#9B51E0', '#F2994A', '#2D9CDB', '#EB5757', '#16314C'];
+
+  // per-trait "in detail" pages (2 traits per page)
+  const chunk = <T,>(arr: T[], n: number): T[][] => {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+    return out;
+  };
+  const eqDetail = chunk(profile.eq.map((e) => ({ label: e.label, percent: e.percent })), 2);
+  const intelDetail = chunk((profile.intelligences ?? []).slice(0, 6).map((i) => ({ label: trimIntelligenceLabel(i.label), percent: i.percent })), 2);
 
   // top domain "career match" fit bars
   const topDomain = domains[0];
@@ -1132,6 +1208,57 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
             </div>
           </div>
         </PageFrame>
+
+        {/* ===== PAGE 17 — CAREER SUCCESS JOURNEY ===== */}
+        <PageFrame page={17} kicker="Your career success journey" name={profile.name}>
+          <div className="flex h-full flex-col">
+            <div className="mb-5 text-center">
+              <Eyebrow color={C.blue}>Where you are</Eyebrow>
+              <h2 className="mt-1 text-[26px] font-extrabold" style={{ color: C.ink }}>Your Career Success Journey</h2>
+              <p className="mt-1 text-[12.5px]" style={{ color: C.body }}>You&apos;ve taken a big step. Here&apos;s the full path — and where you are on it now.</p>
+            </div>
+            <div className="relative flex-1">
+              <div className="absolute bottom-3 left-[18px] top-3 w-1 rounded" style={{ background: C.faint }} />
+              <div className="space-y-2.5">
+                {[
+                  'Create your profile & complete the assessment',
+                  'Discover your strengths across the six lenses',
+                  'Receive your personalised Career Discovery Report',
+                  'Explore your best-fit career domains',
+                  'Try guided, career-focused activities & projects',
+                  'Talk to a OneGrasp career counsellor',
+                  'Build your subject & education plan',
+                  'Follow your step-by-step career roadmap',
+                  'Stay on track with regular progress check-ins',
+                ].map((s, i) => {
+                  const here = i === 3; const done = i <= 3;
+                  return (
+                    <div key={s} className="relative flex items-center gap-3">
+                      <span className="z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white" style={{ background: done ? C.blue : '#C7D2DE' }}>{i + 1}</span>
+                      <div className="flex flex-1 items-center justify-between gap-3 rounded-xl border px-4 py-2.5" style={{ borderColor: here ? C.blue : C.line, background: here ? '#E8F1FE' : '#fff' }}>
+                        <p className="text-[12.5px] font-semibold" style={{ color: done ? C.ink : C.muted }}>{s}</p>
+                        {here && <span className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white" style={{ background: C.blue }}>You are here</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <p className="mt-3 text-center text-[11.5px] text-white rounded-xl py-2.5" style={{ background: C.navy }}>Let&apos;s explore your results for each lens and help you discover your perfect-fit career.</p>
+          </div>
+        </PageFrame>
+
+        {/* ===== EQ IN DETAIL ===== */}
+        {eqDetail.map((traits, i) => (
+          <DetailPage key={`eqd-${i}`} page={18 + i} kicker="Emotional quotient · in detail" name={profile.name}
+            theme={SECTION_THEME.eq} title="Your Emotional Quotient in detail" traits={traits} />
+        ))}
+
+        {/* ===== INTELLIGENCES IN DETAIL ===== */}
+        {intelDetail.map((traits, i) => (
+          <DetailPage key={`ind-${i}`} page={18 + eqDetail.length + i} kicker="Intelligences · in detail" name={profile.name}
+            theme={SECTION_THEME.intelligences} title="Your Intelligences in detail" traits={traits} />
+        ))}
       </div>
     </div>
   );
