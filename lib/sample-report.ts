@@ -1,0 +1,122 @@
+import type { PsychometricProfile } from '@/lib/psychometric';
+
+const bar = (key: string, label: string, percent: number) => ({ key, label, percent });
+
+/** A realistic demo profile so the full report can be previewed without taking the exam. */
+export function sampleProfile(): PsychometricProfile {
+  return {
+    kind: 'psychometric',
+    name: 'Sample Student',
+    dreamCareer: 'Software & Product',
+    favoritePath: 'Science',
+    generatedAt: new Date().toISOString(),
+    overallScore: 78,
+    matchLabel: 'Strong, well-rounded profile',
+    mbtiType: 'ENTJ',
+    mbtiAxes: [
+      { axis: 'EI', left: 'Introvert', right: 'Extravert', leftPct: 38, rightPct: 62, dominant: 'Extravert' },
+      { axis: 'SN', left: 'Sensing', right: 'Intuitive', leftPct: 44, rightPct: 56, dominant: 'Intuitive' },
+      { axis: 'TF', left: 'Thinking', right: 'Feeling', leftPct: 63, rightPct: 37, dominant: 'Thinking' },
+      { axis: 'JP', left: 'Judging', right: 'Perceiving', leftPct: 68, rightPct: 32, dominant: 'Judging' },
+    ],
+    personalityBullets: [
+      'You think ahead, organise well and like to see things finished.',
+      'You weigh decisions logically and back yourself to lead.',
+      'You enjoy people and learn quickly by doing and discussing.',
+    ],
+    strengths: ['Planning & organisation', 'Logical problem-solving', 'Leading a team'],
+    interests: [
+      bar('investigative', 'Investigative', 82),
+      bar('enterprising', 'Enterprising', 74),
+      bar('realistic', 'Realistic', 61),
+      bar('conventional', 'Conventional', 58),
+      bar('artistic', 'Artistic', 49),
+      bar('social', 'Social', 55),
+    ],
+    topInterests: ['Investigative', 'Enterprising', 'Realistic'],
+    motivators: [
+      bar('achievement', 'Achievement', 80),
+      bar('independence', 'Independence', 72),
+      bar('recognition', 'Recognition', 64),
+      bar('security', 'Security', 58),
+      bar('helping', 'Helping others', 52),
+    ],
+    learning: [
+      bar('visual', 'Visual', 70),
+      bar('reading', 'Reading / Writing', 66),
+      bar('kinesthetic', 'Hands-on', 60),
+      bar('auditory', 'Auditory', 52),
+    ],
+    dominantLearning: 'Visual',
+    eq: [
+      { ...bar('selfAwareness', 'Emotional Self Awareness', 74), level: 'High' },
+      { ...bar('managingEmotions', 'Managing Emotions', 58), level: 'Medium' },
+      { ...bar('motivation', 'Motivation', 80), level: 'High' },
+      { ...bar('empathy', 'Empathy', 67), level: 'High' },
+      { ...bar('relationship', 'Relationship Skills', 62), level: 'Medium' },
+    ],
+    skills: [
+      { ...bar('logical', 'Logical Ability', 84), rating: 'Excellent' },
+      { ...bar('numerical', 'Numerical Ability', 79), rating: 'Good' },
+      { ...bar('verbal', 'Verbal Ability', 72), rating: 'Good' },
+      { ...bar('leadership', 'Leadership & Decision Making', 76), rating: 'Good' },
+      { ...bar('admin', 'Administrative & Organising Skills', 70), rating: 'Good' },
+      { ...bar('spatial', 'Spatial & Visualisation Ability', 64), rating: 'Average' },
+      { ...bar('social', 'Social & Co-operation Skills', 61), rating: 'Average' },
+      { ...bar('mechanical', 'Mechanical Abilities', 55), rating: 'Average' },
+    ],
+    overallSkills: 71,
+    clusters: [
+      bar('engtech', 'Engineering & Technology', 83),
+      bar('it', 'Information Technology', 79),
+      bar('business', 'Business Management', 76),
+      bar('science', 'Science & Research', 72),
+      bar('finance', 'Accounts & Finance', 67),
+      bar('entrepreneurship', 'Entrepreneurship', 74),
+      bar('marketing', 'Marketing & Advertising', 63),
+      bar('design', 'Design & Architecture', 58),
+    ],
+    topCareers: [
+      { title: 'Business & Entrepreneurship', roles: '', cluster: 'business', match: 86, verdict: 'Top Choice' },
+      { title: 'Engineering & Technology', roles: '', cluster: 'engtech', match: 82, verdict: 'Good Choice' },
+      { title: 'Finance & Strategy', roles: '', cluster: 'finance', match: 76, verdict: 'Good Choice' },
+    ],
+    domainFitments: [
+      { key: 'business-entrepreneurship', label: 'Business & Entrepreneurship', score: 86, focus: 'Leadership, influence, growth strategy, and execution under ambiguity.', rationale: 'Backed by strong enterprising interests, leadership and organising skills, and clear alignment with the business ecosystem.', signals: ['Enterprising + Conventional interests', 'Leadership and organising capability', 'Business management alignment'], careers: ['Marketing Manager', 'Entrepreneur', 'Operations Manager', 'Business Development Manager', 'Brand Strategist', 'Product Manager'] },
+      { key: 'engineering-technology', label: 'Engineering & Technology', score: 82, focus: 'Systems thinking, applied problem-solving, and technical execution.', rationale: 'Backed by high logical and numerical ability and investigative interests, with strong technology-cluster alignment.', signals: ['Investigative + Realistic interests', 'Logical and numerical capability', 'Engineering & technology alignment'] },
+      { key: 'finance-strategy', label: 'Finance & Strategy', score: 76, focus: 'Commercial judgment, numbers, and structured decision-making.', rationale: 'Backed by numerical and logical ability and conventional interests, with finance-cluster alignment.', signals: ['Conventional + Enterprising interests', 'Numerical and logical capability', 'Accounts & finance alignment'] },
+      { key: 'research-analytics', label: 'Research & Analytics', score: 72, focus: 'Evidence-led investigation, modelling, and pattern analysis.', rationale: 'Backed by investigative interests and strong reasoning, with science and IT alignment.', signals: ['Investigative interests', 'Logical and numerical capability', 'Science & research alignment'] },
+      { key: 'education-social-impact', label: 'Education & Social Impact', score: 64, focus: 'Teaching, guidance, communication, and mission-led support.', rationale: 'Backed by verbal and social skills and helping motivation, with education-cluster alignment.', signals: ['Social interests', 'Verbal and co-operation capability', 'Education & training alignment'] },
+    ],
+    streams: {
+      recommended: 'commerce',
+      recommendedLabel: 'Commerce',
+      scores: [
+        { key: 'commerce', label: 'Commerce', score: 82, band: 'Strong fit' },
+        { key: 'science', label: 'Science', score: 68, band: 'Moderate fit' },
+        { key: 'humanities', label: 'Humanities', score: 54, band: 'Moderate fit' },
+      ],
+    },
+    careerFocus: 'Business & Entrepreneurship',
+    gaps: ['Build steadier composure under pressure', 'Stretch spatial / visual reasoning'],
+    nextSteps: [
+      'Explore your top domains through short projects.',
+      'Talk to a OneGrasp counsellor about subject choices.',
+      'Pick one development tip per lens and practise it.',
+    ],
+    intelligences: [
+      { ...bar('logical', 'Logical-Mathematical (Number Smart)', 85), level: 'High' },
+      { ...bar('linguistic', 'Linguistic (Word Smart)', 74), level: 'High' },
+      { ...bar('interpersonal', 'Interpersonal (People Smart)', 70), level: 'High' },
+      { ...bar('intrapersonal', 'Intrapersonal (Self Smart)', 66), level: 'High' },
+      { ...bar('spatial', 'Spatial (Picture Smart)', 62), level: 'Medium' },
+      { ...bar('kinesthetic', 'Bodily-Kinesthetic (Body Smart)', 57), level: 'Medium' },
+      { ...bar('musical', 'Musical (Sound Smart)', 48), level: 'Medium' },
+      { ...bar('naturalist', 'Naturalist (Nature Smart)', 44), level: 'Low' },
+    ],
+    dominantIntelligence: 'Logical-Mathematical',
+    confidence: { percent: 100, answered: 60, total: 60, label: 'Fully answered' },
+    reliability: { percent: 72, label: 'Good' },
+    dataQuality: { level: 'good', attentionPassed: true, consistencyPercent: 100, notes: ['Answers look careful and internally consistent.'] },
+  };
+}

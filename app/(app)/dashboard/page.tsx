@@ -12,6 +12,8 @@ import { getSession } from '@/lib/firebase';
 import { getLastReportId, getLocalReport } from '@/lib/report-store';
 import type { PsychometricProfile } from '@/lib/psychometric';
 import AssessmentResults from '@/components/dashboard/AssessmentResults';
+import BestFitMatches from '@/components/dashboard/BestFitMatches';
+import CareerRoadmap from '@/components/dashboard/CareerRoadmap';
 
 type Module = { title: string; desc: string; icon: LucideIcon; href: string; from: string; to: string };
 
@@ -30,10 +32,10 @@ function Ring({ value }: { value: number }) {
   const r = 34, c = 2 * Math.PI * r, off = c - (Math.max(0, Math.min(100, value)) / 100) * c;
   return (
     <svg width={88} height={88} viewBox="0 0 84 84" className="shrink-0">
-      <circle cx="42" cy="42" r={r} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="8" />
-      <circle cx="42" cy="42" r={r} fill="none" stroke="#fff" strokeWidth="8" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} transform="rotate(-90 42 42)" />
-      <text x="42" y="40" textAnchor="middle" dominantBaseline="central" fill="#fff" style={{ fontSize: 20, fontWeight: 800 }}>{value}</text>
-      <text x="42" y="56" textAnchor="middle" dominantBaseline="central" fill="rgba(255,255,255,0.8)" style={{ fontSize: 8, letterSpacing: '0.1em' }}>FIT</text>
+      <circle cx="42" cy="42" r={r} fill="none" stroke="#F1F1F4" strokeWidth="8" />
+      <circle cx="42" cy="42" r={r} fill="none" stroke="#E0242E" strokeWidth="8" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} transform="rotate(-90 42 42)" />
+      <text x="42" y="40" textAnchor="middle" dominantBaseline="central" fill="#18191D" style={{ fontSize: 20, fontWeight: 800 }}>{value}</text>
+      <text x="42" y="56" textAnchor="middle" dominantBaseline="central" fill="#9B9DA6" style={{ fontSize: 8, letterSpacing: '0.1em' }}>FIT</text>
     </svg>
   );
 }
@@ -68,18 +70,13 @@ export default function DashboardPage() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       {/* ---- Hero ---- */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl p-6 sm:p-8 text-white mb-6"
-        style={{ background: 'linear-gradient(125deg, #E0242E 0%, #7e22ce 60%, #3b0764 100%)' }}>
-        <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.12]" aria-hidden>
-          <defs><pattern id="hero-dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.6" fill="#fff" /></pattern></defs>
-          <rect width="100%" height="100%" fill="url(#hero-dots)" />
-        </svg>
-        <div className="pointer-events-none absolute -right-10 -top-12 h-48 w-48 rounded-full bg-white/10" />
+        className="relative overflow-hidden rounded-3xl p-6 sm:p-8 mb-6 bg-white border border-line shadow-sm">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-red-soft" />
         <div className="relative flex flex-col sm:flex-row sm:items-center gap-5">
           <div className="flex-1">
-            <p className="text-white/80 text-sm font-medium">Welcome back</p>
-            <h1 className="text-3xl font-extrabold mt-0.5">Hi {firstName} 👋</h1>
-            <p className="text-white/85 text-sm mt-1.5 max-w-lg">
+            <p className="text-ink-4 text-sm font-medium">Welcome back</p>
+            <h1 className="text-3xl font-extrabold mt-0.5 text-ink">Hi {firstName} 👋</h1>
+            <p className="text-ink-3 text-sm mt-1.5 max-w-lg">
               {hasReport
                 ? 'Your career command centre — your report, colleges, exams, internships and boosters in one place.'
                 : 'Discover careers that fit you. Take the assessment to unlock your personalised report and roadmap.'}
@@ -87,37 +84,51 @@ export default function DashboardPage() {
             <div className="flex flex-wrap gap-2.5 mt-4">
               {hasReport ? (
                 <>
-                  <Link href={reportHref} className="inline-flex items-center gap-2 bg-white text-red text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg hover:bg-white/90">
+                  <Link href={reportHref} className="inline-flex items-center gap-2 bg-red text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-glow hover:bg-red-dark">
                     View career report <ArrowRight className="w-4 h-4" />
                   </Link>
-                  <a href="https://wa.me/918977760443" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-white/15 text-white text-sm font-semibold px-4 py-2.5 rounded-xl backdrop-blur hover:bg-white/25">
+                  <a href="https://wa.me/918977760443" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-bg text-ink-2 text-sm font-semibold px-4 py-2.5 rounded-xl border border-line hover:bg-line-2">
                     <MessageCircle className="w-4 h-4" /> Talk to a counsellor
                   </a>
                 </>
               ) : (
-                <Link href="/assessment" className="inline-flex items-center gap-2 bg-white text-red text-sm font-bold px-5 py-2.5 rounded-xl shadow-lg hover:bg-white/90">
+                <Link href="/assessment" className="inline-flex items-center gap-2 bg-red text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow-glow hover:bg-red-dark">
                   Start career assessment <ArrowRight className="w-4 h-4" />
                 </Link>
               )}
             </div>
           </div>
           {hasReport && (
-            <div className="flex items-center gap-4 sm:border-l sm:border-white/20 sm:pl-6">
+            <div className="flex items-center gap-4 sm:border-l sm:border-line sm:pl-6">
               <Ring value={fit} />
               <div className="text-sm">
-                <p className="font-bold leading-tight">{report?.matchLabel ?? 'Career fit'}</p>
-                <p className="text-white/75 text-xs mt-0.5">Top domain</p>
-                <p className="font-semibold text-[13px] leading-tight">{report?.topCareers?.[0]?.cluster ?? report?.matchLabel ?? '—'}</p>
+                <p className="font-bold leading-tight text-ink">{report?.matchLabel ?? 'Career fit'}</p>
+                <p className="text-ink-4 text-xs mt-0.5">Top domain</p>
+                <p className="font-semibold text-[13px] leading-tight text-ink-2">{report?.topCareers?.[0]?.cluster ?? report?.matchLabel ?? '—'}</p>
               </div>
             </div>
           )}
         </div>
       </motion.div>
 
+      {/* ---- Best-fit career matches (Mindler-style) ---- */}
+      {hasReport && report && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.06 }} className="mb-6">
+          <BestFitMatches profile={report} reportHref={reportHref} />
+        </motion.div>
+      )}
+
       {/* ---- Assessment results (when a report exists) ---- */}
       {hasReport && report && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="mb-8">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
           <AssessmentResults profile={report} reportHref={reportHref} />
+        </motion.div>
+      )}
+
+      {/* ---- Career roadmap / next steps (Mindler-style planner) ---- */}
+      {hasReport && report && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }} className="mb-8">
+          <CareerRoadmap profile={report} reportHref={reportHref} />
         </motion.div>
       )}
 
@@ -132,9 +143,9 @@ export default function DashboardPage() {
           return (
             <motion.div key={m.title} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 * i }}>
               <Link href={m.href}
-                className="group flex items-start gap-4 bg-white border border-line rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm" style={{ background: `linear-gradient(135deg, ${m.from}, ${m.to})` }}>
-                  <Icon className="w-6 h-6 text-white" />
+                className="group flex items-start gap-4 bg-white border border-line rounded-2xl p-5 shadow-sm hover:border-ink-4/30 hover:-translate-y-0.5 transition-all h-full">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${m.from}14` }}>
+                  <Icon className="w-[22px] h-[22px]" style={{ color: m.from }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-ink text-[15px] leading-tight">{m.title}</p>

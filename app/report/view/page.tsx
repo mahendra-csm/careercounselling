@@ -7,6 +7,7 @@ import PsychometricReport from '@/components/report/PsychometricReport';
 import type { PsychometricProfile } from '@/lib/psychometric';
 import { getLocalReport } from '@/lib/report-store';
 import { getSession, loadReport } from '@/lib/firebase';
+import { sampleProfile } from '@/lib/sample-report';
 
 function ReportView() {
   const params = useSearchParams();
@@ -17,6 +18,8 @@ function ReportView() {
   useEffect(() => {
     let active = true;
     (async () => {
+      // 0) built-in demo report (preview the full layout without taking the exam)
+      if (id === 'sample' || id === 'demo') { setProfile(sampleProfile()); setState('ready'); return; }
       // 1) instant: local cache
       const local = getLocalReport(id);
       if (local) { setProfile(local); setState('ready'); return; }

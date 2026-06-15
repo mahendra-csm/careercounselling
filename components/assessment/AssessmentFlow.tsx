@@ -14,15 +14,22 @@ import {
 } from 'lucide-react';
 import Logo from '@/components/brand/Logo';
 import {
-  QUESTIONS, SECTIONS, questionsForSection,
-  type AnswerMap, type SectionId,
+  balancedQuestionsForLevel, sectionsForLevel,
+  type AnswerMap, type SectionId, type SamplingProfile,
 } from '@/lib/assessment-questions';
 import { EXAM_LANGS, localizeQuestion, type ExamLang } from '@/lib/assessment-i18n';
+import { LEVELS, getLevel, type AssessmentLevel } from '@/lib/assessment-levels';
 import { scoreAssessment } from '@/lib/assessment-engine';
 import { makeReportId, saveLocalReport } from '@/lib/report-store';
 import { signUp, signIn, getSession, signOut } from '@/lib/firebase';
 
 type StageKey = 'no-idea' | 'confused' | 'exploring' | 'sure';
+
+/** Test depth. 'standard' balances reliability vs length (≥3–4 items/trait,
+ *  always keeps reverse + attention checks); 'full' asks every authored item;
+ *  'quick' is the shortest. The flow and the scoring engine must use the SAME
+ *  value so the questions asked are exactly the questions scored. */
+const SAMPLING: SamplingProfile = 'standard';
 
 const MILESTONES = [
   { id: 'class-2-7', label: 'Career Analysis for 2nd to 7th class', icon: School, blurb: 'Discover the multiple intelligences of the student.' },
@@ -32,6 +39,15 @@ const MILESTONES = [
   { id: 'professionals', label: 'Career Analysis for Professionals', icon: Briefcase, blurb: 'Early and mid career counselling with a plan.' },
 ] as const;
 
+/** The level picker is the single source of "which class" — map it to the milestone used downstream. */
+const LEVEL_TO_MILESTONE: Record<AssessmentLevel, string> = {
+  junior: 'class-2-7',
+  elementary: 'class-2-7',
+  secondary: 'class-8-10',
+  senior: 'class-11-12',
+  graduate: 'graduates',
+};
+
 const STAGES: { id: StageKey; label: string; icon: typeof HelpCircle }[] = [
   { id: 'no-idea', label: 'I have no idea about my career', icon: HelpCircle },
   { id: 'confused', label: 'I am confused among various career options', icon: SlidersHorizontal },
@@ -39,7 +55,7 @@ const STAGES: { id: StageKey; label: string; icon: typeof HelpCircle }[] = [
   { id: 'sure', label: 'I am very sure about my career choice but need an execution plan', icon: Route },
 ];
 
-const TABS = ['Set your milestone', 'Select your current stage', 'Start assessment'];
+const TABS = ['Your details', 'Select your current stage', 'Start assessment'];
 
 // Country dialing codes — India default. (flag, dial code, ISO label)
 const COUNTRY_CODES: { flag: string; dial: string; iso: string }[] = [
@@ -68,7 +84,14 @@ function fmt(sec: number) {
 export default function AssessmentFlow() {
   const router = useRouter();
   const [phase, setPhase] = useState(0);
+  const [level, setLevel] = useState<AssessmentLevel | null>(null);
   const isQuestionPhase = phase === 4;
+
+  // Level-scoped question set + sections (untagged questions = secondary/8–10).
+  const activeLevel = level ?? 'secondary';
+  const QSET = useMemo(() => balancedQuestionsForLevel(activeLevel, SAMPLING), [activeLevel]);
+  const SECSET = useMemo(() => sectionsForLevel(activeLevel), [activeLevel]);
+  const qForSection = useCallback((id: SectionId) => QSET.filter((q) => q.section === id), [QSET]);
 
   // collected data
   const [name, setName] = useState('');
@@ -86,7 +109,7 @@ export default function AssessmentFlow() {
   const [notRobot, setNotRobot] = useState(false);
 
   // question runner
-  const total = QUESTIONS.length;
+  const total = QSET.length;
   const [lang, setLang] = useState<ExamLang>('en'); // exam language for prompts + options
   const [qIndex, setQIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>({});
@@ -152,9 +175,9 @@ export default function AssessmentFlow() {
   // section boundaries
   const firstIndexOf = useMemo(() => {
     const map: Record<string, number> = {};
-    QUESTIONS.forEach((q, i) => { if (map[q.section] === undefined) map[q.section] = i; });
+    QSET.forEach((q, i) => { if (map[q.section] === undefined) map[q.section] = i; });
     return map;
-  }, []);
+  }, [QSET]);
 
   const setAnswer = (id: string, value: number) => {
     if (timedOut[id]) return; // locked: time already expired for this question
@@ -218,7 +241,7 @@ export default function AssessmentFlow() {
       // were attempted. Below that, the completion screen explains why.
       if (pct >= 70) {
         step('Scoring your answers…', 30);
-        const profile = scoreAssessment(answers, name);
+        const profile = scoreAssessment(answers, name, undefined, activeLevel, SAMPLING);
 
         step('Building your personalised report…', 60);
         saveLocalReport(id, profile);
@@ -256,7 +279,7 @@ export default function AssessmentFlow() {
       // Keep the overlay visible so the error is actually shown, instead of
       // silently dropping the user back onto the last question.
     }
-  }, [answers, name, password, email, router, total]);
+  }, [answers, name, password, email, router, total, activeLevel]);
 
   // Stores the full student lead in Firestore (both forms' data). Best-effort —
   // returns true/false so we can show the student whether it was saved.
@@ -304,13 +327,13 @@ export default function AssessmentFlow() {
   const goTo = useCallback((idx: number) => {
     if (idx >= total) { handleSubmit(); return; }
     const clamped = Math.max(0, idx);
-    const q = QUESTIONS[clamped];
+    const q = QSET[clamped];
     setQIndex(clamped);
     setVisited((v) => ({ ...v, [q.id]: true }));
     if (firstIndexOf[q.section] === clamped && !ackIntros[q.section]) {
       setIntroSection(q.section);
     }
-  }, [total, handleSubmit, firstIndexOf, ackIntros]);
+  }, [total, handleSubmit, firstIndexOf, ackIntros, QSET]);
 
   // Create the student's account from the credentials entered above, then move
   // on to the instructions. Doing this up front guarantees the email + password
@@ -358,7 +381,7 @@ export default function AssessmentFlow() {
     enterFullscreen();
     setFsWarnings(0);
     setQIndex(0);
-    setIntroSection(QUESTIONS[0].section);
+    setIntroSection(QSET[0].section);
     setPhase(4);
   };
 
@@ -372,7 +395,7 @@ export default function AssessmentFlow() {
   qIndexRef.current = qIndex;
   useEffect(() => {
     if (phase !== 4 || introSection) return;
-    const q = QUESTIONS[qIndex];
+    const q = QSET[qIndex];
     // Already expired → keep it locked, don't restart the timer on revisit.
     if (timedOut[q.id]) { setSecondsLeft(0); return; }
     setSecondsLeft(q.timeSec);
@@ -389,16 +412,16 @@ export default function AssessmentFlow() {
       });
     }, 1000);
     return () => clearInterval(tick);
-  }, [qIndex, introSection, phase, goTo, timedOut]);
+  }, [qIndex, introSection, phase, goTo, timedOut, QSET]);
 
   // global remaining time (sum of remaining questions' budgets)
   useEffect(() => {
     if (phase !== 4 || introSection) return;
-    const remainingBudget = QUESTIONS.slice(qIndex).reduce((s, q) => s + q.timeSec, 0);
+    const remainingBudget = QSET.slice(qIndex).reduce((s, qq) => s + qq.timeSec, 0);
     setTotalLeft(remainingBudget);
     const t = setInterval(() => setTotalLeft((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(t);
-  }, [qIndex, introSection, phase]);
+  }, [qIndex, introSection, phase, QSET]);
 
   // anti-proxy: during the test the student must stay in full screen AND keep the
   // exam tab focused. Exiting full screen, switching tabs/apps, or moving focus
@@ -655,6 +678,65 @@ export default function AssessmentFlow() {
     );
   }
 
+  // LEVEL PICKER — choose the grade track before the flow begins.
+  if (!level) {
+    return (
+      <div className="min-h-screen bg-bg">
+        <header className="bg-white border-b border-line">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+            <Link href="/"><Logo size={32} /></Link>
+            <Link href="/dashboard" className="text-sm font-semibold text-ink-3 hover:text-ink">Home</Link>
+          </div>
+        </header>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+          <div className="text-center mb-8">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-red mb-2">Choose your level</p>
+            <h1 className="text-3xl font-extrabold text-ink">Which assessment is right for you?</h1>
+            <p className="text-sm text-ink-3 mt-2">Pick the option that matches your class. Each level is tailored to the right age group.</p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {LEVELS.map((lv) => {
+              const ready = lv.status === 'ready';
+              return (
+                <button
+                  key={lv.id}
+                  disabled={!ready}
+                  onClick={() => { if (ready) { setLevel(lv.id); setMilestone(LEVEL_TO_MILESTONE[lv.id]); } }}
+                  className={`group relative flex flex-col overflow-hidden rounded-2xl border bg-white text-left transition-all duration-200 ${
+                    ready ? 'border-line hover:-translate-y-1 hover:shadow-xl cursor-pointer' : 'border-line opacity-60 cursor-not-allowed'
+                  }`}
+                >
+                  <span className="absolute inset-x-0 top-0 h-1.5" style={{ background: lv.accent }} />
+                  <div className="flex flex-1 flex-col p-5 pt-6">
+                    <div className="mb-4 flex items-center justify-between">
+                      <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl text-white font-extrabold text-[13px] shadow-sm" style={{ background: `linear-gradient(150deg, ${lv.accent}, ${lv.accent}cc)` }}>
+                        {lv.classes.replace('Class ', '').replace('Graduates', 'UG')}
+                      </span>
+                      {ready
+                        ? <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white" style={{ background: lv.accent }}><Check className="h-3 w-3" /> Available</span>
+                        : <span className="rounded-full border border-line bg-bg px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-4">Coming soon</span>}
+                    </div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: lv.accent }}>{lv.classes}</p>
+                    <h3 className="mt-0.5 text-xl font-extrabold text-ink">{lv.title}</h3>
+                    <p className="mt-2 flex-1 text-[12.5px] leading-5 text-ink-3">{lv.blurb}</p>
+                    <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
+                      <span className="text-[11px] font-semibold text-ink-4">{lv.sections.length} sections</span>
+                      {ready && (
+                        <span className="inline-flex items-center gap-1 text-[12px] font-bold transition-transform group-hover:translate-x-0.5" style={{ color: lv.accent }}>
+                          Start <ChevronRight className="h-4 w-4" />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-bg">
       <header className="bg-white border-b border-line">
@@ -685,32 +767,23 @@ export default function AssessmentFlow() {
           {phase === 0 && (
             <motion.div key="p0" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
               className="bg-white rounded-2xl border border-line shadow-sm p-6 sm:p-8">
-              <h2 className="text-2xl font-extrabold text-ink text-center mb-6">Select your Milestone</h2>
-              <div className="grid sm:grid-cols-2 gap-4 mb-6 max-w-2xl mx-auto">
-                <div>
-                  <label className="text-sm font-semibold text-ink-2 block mb-1.5">Your Name</label>
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your name"
-                    className="w-full px-4 py-3 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
-                  {name.trim() && !isValidName && (
-                    <p className="text-xs text-red mt-1.5">Enter a valid name (letters only, at least 2 characters).</p>
-                  )}
+              <h2 className="text-2xl font-extrabold text-ink text-center mb-6">Let&apos;s get started</h2>
+              <div className="max-w-xl mx-auto">
+                <div className="flex items-center justify-between rounded-xl border border-line bg-bg px-4 py-3 mb-5">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-ink-4">Selected level</p>
+                    <p className="text-sm font-bold text-ink">{getLevel(level).classes} · {getLevel(level).title}</p>
+                  </div>
+                  <button onClick={() => setLevel(null)} className="text-xs font-semibold text-red hover:underline">Change</button>
                 </div>
+                <label className="text-sm font-semibold text-ink-2 block mb-1.5">Your Name</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your name"
+                  className="w-full px-4 py-3 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+                {name.trim() && !isValidName && (
+                  <p className="text-xs text-red mt-1.5">Enter a valid name (letters only, at least 2 characters).</p>
+                )}
               </div>
-              <p className="text-sm font-bold text-ink-2 mb-3">I need guidance for <span className="text-ink-4 font-medium">(Select any one)</span>:</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {MILESTONES.map(({ id, label, icon: Icon, blurb }) => {
-                  const selected = milestone === id;
-                  return (
-                    <button key={id} onClick={() => setMilestone(id)}
-                      className={`text-left p-4 rounded-xl border-2 transition-all ${selected ? 'border-red bg-red-soft' : 'border-line hover:border-red-line bg-white'}`}>
-                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${selected ? 'bg-red text-white' : 'bg-bg text-ink-3'}`}><Icon className="w-5 h-5" /></div>
-                      <p className="font-bold text-sm text-ink leading-snug">{label}</p>
-                      <p className="text-xs text-ink-4 mt-1">{blurb}</p>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex items-center justify-between mt-8">
+              <div className="flex items-center justify-between mt-8 max-w-xl mx-auto">
                 <Link href="/sign-in" className="text-sm font-semibold text-ink-3 hover:text-red">Existing user login</Link>
                 <button disabled={!canNextMilestone} onClick={() => setPhase(1)}
                   className="inline-flex items-center gap-2 bg-red text-white font-semibold px-6 py-3 rounded-xl shadow-glow disabled:opacity-50 disabled:shadow-none">Next <ChevronRight className="w-4 h-4" /></button>
@@ -838,7 +911,7 @@ export default function AssessmentFlow() {
               className="bg-white rounded-2xl border border-line shadow-sm p-5 sm:p-6 max-w-5xl mx-auto">
               <div className="flex flex-wrap items-center gap-3 mb-4">
                 <h2 className="text-xl font-extrabold text-ink">Instructions — please read</h2>
-                <span className="text-[11px] font-bold text-red bg-red-soft border border-red-line rounded-full px-3 py-1">{total} questions · 6 sections · ~45s each</span>
+                <span className="text-[11px] font-bold text-red bg-red-soft border border-red-line rounded-full px-3 py-1">{total} questions · {SECSET.length} sections · ~45s each</span>
               </div>
 
               {/* exam language — questions & answers shown in the chosen language */}
@@ -866,12 +939,12 @@ export default function AssessmentFlow() {
 
               {/* 6 sections — all visible in one view (3 × 2) */}
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 mb-4">
-                {SECTIONS.map((s) => (
+                {SECSET.map((s) => (
                   <div key={s.id} className="rounded-xl border border-line p-3">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="w-5 h-5 rounded-full bg-red text-white text-[10px] font-bold flex items-center justify-center shrink-0">{s.index}</span>
                       <p className="font-bold text-[13px] text-ink leading-tight">{s.title}</p>
-                      <span className="ml-auto text-[10px] text-ink-4 shrink-0">{questionsForSection(s.id).length} Q</span>
+                      <span className="ml-auto text-[10px] text-ink-4 shrink-0">{qForSection(s.id).length} Q</span>
                     </div>
                     <p className="text-[11px] text-ink-3 leading-snug line-clamp-3">{s.blurb}</p>
                   </div>
@@ -911,17 +984,19 @@ export default function AssessmentFlow() {
 
           {/* PHASE 4: SECTION INTRO */}
           {phase === 4 && introSection && (() => {
-            const sec = SECTIONS.find((s) => s.id === introSection)!;
-            const count = questionsForSection(sec.id).length;
+            const sec = SECSET.find((s) => s.id === introSection)!;
+            const count = qForSection(sec.id).length;
+            const secNo = SECSET.findIndex((s) => s.id === sec.id) + 1;
+            const secTotal = SECSET.length;
             return (
               <motion.div key={`intro-${sec.id}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                 className="bg-white rounded-2xl border border-line shadow-sm p-6 sm:p-10 max-w-2xl mx-auto text-center">
                 <div className="flex items-center justify-center gap-2 mb-4">
-                  {SECTIONS.map((s) => (
+                  {SECSET.map((s) => (
                     <span key={s.id} className={`h-1.5 rounded-full transition-all ${s.id === sec.id ? 'w-8 bg-red' : ackIntros[s.id] ? 'w-4 bg-red/40' : 'w-4 bg-line-2'}`} />
                   ))}
                 </div>
-                <p className="text-xs font-bold uppercase tracking-widest text-red mb-2">Section {sec.index} of 6</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-red mb-2">Section {secNo} of {secTotal}</p>
                 <h2 className="text-3xl font-extrabold text-ink mb-3">{sec.title}</h2>
                 <p className="text-sm text-ink-2 max-w-md mx-auto mb-6">{sec.blurb}</p>
                 <div className="bg-bg rounded-xl border border-line p-5 text-left max-w-md mx-auto mb-6">
@@ -954,7 +1029,7 @@ export default function AssessmentFlow() {
                     <ChevronLeft className="w-4 h-4" /> Back
                   </button>
                   <button onClick={beginSection} className="inline-flex items-center gap-2 bg-red text-white font-semibold px-8 py-3 rounded-xl shadow-glow">
-                    Begin Section {sec.index} <ChevronRight className="w-4 h-4" />
+                    Begin Section {secNo} <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
               </motion.div>
@@ -963,9 +1038,9 @@ export default function AssessmentFlow() {
 
           {/* PHASE 4: QUESTION */}
           {phase === 4 && !introSection && (() => {
-            const q = QUESTIONS[qIndex];
-            const sec = SECTIONS.find((s) => s.id === q.section)!;
-            const sectionQs = questionsForSection(q.section);
+            const q = QSET[qIndex];
+            const sec = SECSET.find((s) => s.id === q.section)!;
+            const sectionQs = qForSection(q.section);
             const withinIdx = sectionQs.findIndex((x) => x.id === q.id);
             const selected = answers[q.id];
             const locked = timedOut[q.id];
@@ -982,7 +1057,7 @@ export default function AssessmentFlow() {
                 {/* timer + section bar */}
                 <div className="bg-ink text-white px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-[11px] uppercase tracking-widest text-white/50">Section {sec.index} · {sec.title}</p>
+                    <p className="text-[11px] uppercase tracking-widest text-white/50">Section {SECSET.findIndex((s) => s.id === sec.id) + 1} · {sec.title}</p>
                     <p className="text-sm font-bold">Question {qIndex + 1} of {total} <span className="text-white/50 font-normal">· {withinIdx + 1}/{sectionQs.length} in section</span></p>
                   </div>
                   <div className="flex items-center gap-4">
@@ -1073,7 +1148,7 @@ export default function AssessmentFlow() {
                     <PaletteLegend answered={answeredCount} marked={markedCount} total={total} />
                     <Palette
                       qIndex={qIndex} answers={answers} marked={marked} visited={visited}
-                      onJump={(i) => goTo(i)}
+                      onJump={(i) => goTo(i)} sections={SECSET} qForSection={qForSection}
                     />
                   </aside>
                 </div>
@@ -1088,7 +1163,7 @@ export default function AssessmentFlow() {
                   {showPalette && (
                     <div className="mt-3 bg-white border border-line rounded-xl p-4">
                       <PaletteLegend answered={answeredCount} marked={markedCount} total={total} />
-                      <Palette qIndex={qIndex} answers={answers} marked={marked} visited={visited} onJump={(i) => { goTo(i); setShowPalette(false); }} />
+                      <Palette qIndex={qIndex} answers={answers} marked={marked} visited={visited} onJump={(i) => { goTo(i); setShowPalette(false); }} sections={SECSET} qForSection={qForSection} />
                     </div>
                   )}
                 </div>
@@ -1191,10 +1266,12 @@ function Legend({ color, icon, label }: { color: string; icon: React.ReactNode; 
 }
 
 function Palette({
-  qIndex, answers, marked, visited, onJump,
+  qIndex, answers, marked, visited, onJump, sections, qForSection,
 }: {
   qIndex: number; answers: AnswerMap; marked: Record<string, boolean>; visited: Record<string, boolean>;
   onJump: (i: number) => void;
+  sections: { id: SectionId; index: number; short: string }[];
+  qForSection: (id: SectionId) => { id: string }[];
 }) {
   let offset = 0;
   const currentRef = useRef<HTMLButtonElement>(null);
@@ -1204,13 +1281,13 @@ function Palette({
   }, [qIndex]);
   return (
     <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
-      {SECTIONS.map((sec) => {
-        const qs = questionsForSection(sec.id);
+      {sections.map((sec, si) => {
+        const qs = qForSection(sec.id);
         const start = offset;
         offset += qs.length;
         return (
           <div key={sec.id}>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-ink-4 mb-1.5">{sec.index}. {sec.short}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-ink-4 mb-1.5">{si + 1}. {sec.short}</p>
             <div className="grid grid-cols-5 gap-1.5">
               {qs.map((q, j) => {
                 const globalIdx = start + j;
@@ -1292,7 +1369,7 @@ function LocationField({ value, onChange, error }: { value: string; onChange: (v
         <MapPin className="w-4 h-4 text-ink-4 absolute left-3 top-1/2 -translate-y-1/2" />
         <input
           value={query}
-          onChange={(e) => { setQuery(e.target.value); onChange(''); }}
+          onChange={(e) => { setQuery(e.target.value); onChange(e.target.value); }}
           onFocus={() => results.length && setOpen(true)}
           placeholder="Search your city / area"
           className={`w-full pl-9 pr-9 py-3 rounded-xl border bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red ${error ? 'border-red' : 'border-line'}`}

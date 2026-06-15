@@ -12,35 +12,69 @@ import Link from 'next/link';
 import { Palette, Compass, Flame, BookOpen, Brain, Calculator, Heart, ArrowRight, type LucideIcon } from 'lucide-react';
 import type { PsychometricProfile } from '@/lib/psychometric';
 
-type Tab = { id: string; label: string; icon: LucideIcon; color: string; soft: string; blurb: string; bars: { label: string; value: number }[] };
+type Item = { label: string; value: number };
+type Tab = { id: string; label: string; icon: LucideIcon; color: string; soft: string; blurb: string; bars: Item[] };
 
-const GRID = '#EDF1F7';
-const TRACK = '#F5F8FC';
+function zoneOf(v: number) {
+  return v >= 66 ? 'High' : v >= 45 ? 'Medium' : 'Low';
+}
 
-/** Label-inside bars on a Low | Medium | High gridded track (Mindler look). */
-function MBars({ items, color }: { items: { label: string; value: number }[]; color: string }) {
+/**
+ * Ranked gauge rows. Each trait sits on a Low|Medium|High track with a position
+ * marker (lollipop) at its score — strongest first, with the leader highlighted.
+ */
+function ScaleRows({ items, color, soft }: { items: Item[]; color: string; soft: string }) {
+  const sorted = [...items].sort((a, b) => b.value - a.value);
+  const top = sorted[0];
+
   return (
-    <div className="overflow-hidden rounded-xl border border-line">
-      <div className="relative px-3 py-3">
-        <div className="pointer-events-none absolute inset-0 flex px-3">
-          <div className="flex-1" style={{ borderRight: `1px solid ${GRID}` }} />
-          <div className="flex-1" style={{ borderRight: `1px solid ${GRID}` }} />
-          <div className="flex-1" />
+    <div>
+      {top && (
+        <div className="mb-4 flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: soft }}>
+          <span className="flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-extrabold text-white" style={{ background: color }}>
+            {top.value}
+          </span>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-4">Strongest in this area</p>
+            <p className="truncate text-[14px] font-bold text-ink">{top.label}</p>
+          </div>
+          <span className="ml-auto rounded-full bg-white px-2.5 py-1 text-[10px] font-bold" style={{ color }}>{zoneOf(top.value)}</span>
         </div>
-        <div className="relative space-y-1.5">
-          {items.map((it) => (
-            <div key={it.label} className="relative h-7 overflow-hidden rounded-[5px]" style={{ background: TRACK }}>
-              <div className="flex h-full items-center rounded-[5px] pl-2.5 pr-2" style={{ width: `${Math.max(26, it.value)}%`, background: color }}>
-                <span className="truncate text-[11px] font-semibold text-white">{it.label}</span>
+      )}
+
+      <div className="space-y-2">
+        {sorted.map((it, i) => {
+          const lead = i === 0;
+          return (
+            <div key={it.label} className="flex items-center gap-2.5">
+              <span className="w-5 shrink-0 text-center text-[11px] font-bold" style={{ color: lead ? color : '#9B9DA6' }}>{i + 1}</span>
+              <span className={`w-28 shrink-0 truncate text-[12px] ${lead ? 'font-bold text-ink' : 'font-medium text-ink-2'}`}>{it.label}</span>
+              <div className="relative h-2 flex-1 rounded-full" style={{ background: '#F1F1F4' }}>
+                {/* zone dividers at thirds */}
+                <span className="absolute top-1/2 h-2.5 w-px -translate-y-1/2 bg-line" style={{ left: '33.33%' }} />
+                <span className="absolute top-1/2 h-2.5 w-px -translate-y-1/2 bg-line" style={{ left: '66.66%' }} />
+                {/* fill */}
+                <div className="absolute left-0 top-0 h-full rounded-full" style={{ width: `${it.value}%`, background: color, opacity: lead ? 1 : 0.55 }} />
+                {/* marker */}
+                <span className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-white shadow-sm"
+                  style={{ left: `calc(${it.value}% - 7px)`, background: color, opacity: lead ? 1 : 0.85 }} />
               </div>
+              <span className="w-8 shrink-0 text-right text-[12px] font-bold text-ink">{it.value}</span>
             </div>
+          );
+        })}
+      </div>
+
+      {/* axis aligned under the tracks */}
+      <div className="mt-2 flex items-center gap-2.5">
+        <span className="w-5 shrink-0" />
+        <span className="w-28 shrink-0" />
+        <div className="flex flex-1">
+          {['Low', 'Medium', 'High'].map((z) => (
+            <span key={z} className="flex-1 text-center text-[9.5px] font-semibold uppercase tracking-wider text-ink-4">{z}</span>
           ))}
         </div>
-      </div>
-      <div className="flex border-t border-line" style={{ background: TRACK }}>
-        {['Low', 'Medium', 'High'].map((z) => (
-          <div key={z} className="flex-1 py-1.5 text-center text-[9.5px] font-semibold uppercase tracking-wider text-ink-4">{z}</div>
-        ))}
+        <span className="w-8 shrink-0" />
       </div>
     </div>
   );
@@ -94,7 +128,7 @@ export default function AssessmentResults({ profile, reportHref }: { profile: Ps
         <div className="p-5">
           <p className="font-bold text-ink text-[15px] mb-1">Your {tab.label}</p>
           <p className="text-xs text-ink-3 mb-4 max-w-2xl">{tab.blurb}</p>
-          <MBars items={tab.bars} color={tab.color} />
+          <ScaleRows items={tab.bars} color={tab.color} soft={tab.soft} />
         </div>
       )}
     </div>

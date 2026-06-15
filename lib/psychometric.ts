@@ -93,6 +93,7 @@ export interface SectionScore {
   strengths: string[];
   weaknesses: string[];
 }
+export interface DomainPenalty { skill: string; actual: number; threshold: number; reason: string; }
 export interface DomainFitment {
   key: string;
   label: string;
@@ -100,7 +101,12 @@ export interface DomainFitment {
   focus: string;
   rationale: string;
   signals: string[];
+  /** Recommended careers within this domain. */
+  careers?: string[];
+  /** Eligibility penalties applied (a critical aptitude was below its floor). */
+  penalties?: DomainPenalty[];
 }
+export interface StreamFit { key: string; label: string; score: number; band: string; }
 export interface PsychometricProfile {
   kind: 'psychometric';
   name: string;
@@ -138,6 +144,17 @@ export interface PsychometricProfile {
   sectionScores?: SectionScore[];
   domainFitments?: DomainFitment[];
   confidence?: { percent: number; answered: number; total: number; label: string };
+  /** Academic stream recommendation (Science / Commerce / Humanities). */
+  streams?: { recommended: string; recommendedLabel: string; scores: StreamFit[] };
+  /** Estimated measurement reliability (Spearman–Brown from item counts). */
+  reliability?: { percent: number; label: string };
+  /** Response-quality gate from attention + reverse-item consistency checks. */
+  dataQuality?: {
+    level: 'good' | 'review' | 'low';
+    attentionPassed: boolean;
+    consistencyPercent: number;
+    notes: string[];
+  };
 }
 
 // ---------- helpers ----------

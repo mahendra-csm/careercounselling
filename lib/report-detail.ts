@@ -252,13 +252,35 @@ const GENERIC: TraitContent = {
   develop: ['Practise this skill in short, regular sessions.', 'Seek feedback and apply it in real tasks.'],
 };
 
+/** Concrete, real-world actions per trait family (so advice isn't generic). */
+const CONCRETE: { keys: string[]; action: string }[] = [
+  { keys: ['logical', 'mathematical', 'numerical'], action: 'Practise on Brilliant, Khan Academy or HackerRank, and enter a maths/coding/science challenge.' },
+  { keys: ['linguistic', 'verbal'], action: 'Read widely and write a short blog, story or journal weekly; try debate, MUN or a writing club.' },
+  { keys: ['spatial', 'visual'], action: 'Build a project in a free tool like Canva, Tinkercad or a 3D-modelling app; sketch regularly.' },
+  { keys: ['leadership'], action: 'Lead a class project, club or community drive, and take a free leadership course on Coursera.' },
+  { keys: ['interpersonal', 'co-operation'], action: 'Volunteer or mentor a junior and join a team activity that needs collaboration.' },
+  { keys: ['social', 'empathy', 'relationship'], action: 'Practise active listening, and join community service or a peer-support group.' },
+  { keys: ['intrapersonal', 'self awareness', 'self-aware', 'motivation'], action: 'Keep a weekly reflection journal, set SMART goals, and track one habit for 30 days.' },
+  { keys: ['kinesthetic', 'mechanical', 'bodily'], action: 'Take on a hands-on build/repair project, a robotics kit, or a regular sport.' },
+  { keys: ['naturalist', 'nature'], action: 'Start a nature-observation log or a small garden project, and try a citizen-science app like iNaturalist.' },
+  { keys: ['musical'], action: 'Learn an instrument or free music software (BandLab), and use rhythm as a study aid.' },
+  { keys: ['administrative', 'organis'], action: 'Use a planner/Notion to run your week, and break big tasks into a checklist.' },
+];
+
 export function detailFor(label: string, percent: number): TraitDetail {
   const l = label.toLowerCase();
   const match = LIBRARY.find((t) => t.keys.some((k) => l.includes(k))) ?? GENERIC;
+  const concrete = CONCRETE.find((c) => c.keys.some((k) => l.includes(k)))?.action;
   const band = bandOf(percent);
+  // Every trait gets real, actionable guidance. For a strength it's framed as
+  // "how to leverage it"; for a growth area it's "how to build it".
+  const base = band === 'high'
+    ? [`Lead with this strength: ${match.develop[0].charAt(0).toLowerCase()}${match.develop[0].slice(1)}`, ...match.develop.slice(1)]
+    : match.develop;
+  const develop = concrete ? [...base, concrete] : base;
   return {
     meaning: match.meaning,
     analysis: band === 'high' ? match.high : band === 'medium' ? match.medium : match.low,
-    develop: band === 'high' ? ['You have scored well in this trait — keep using and stretching it.'] : match.develop,
+    develop,
   };
 }

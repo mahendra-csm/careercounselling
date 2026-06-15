@@ -37,3 +37,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scratch / reference images (not part of the app)
+tmp-mindler-*
+tmp_mindler_*
