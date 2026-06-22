@@ -354,6 +354,19 @@ async function deleteDoc(collection: string, id: string, session: FbSession): Pr
   }
 }
 
+/** Admin only: permanently delete ONE student — their lead row and their report. */
+export async function deleteStudent(
+  leadId: string,
+  reportId: string | undefined,
+  session: FbSession | null
+): Promise<boolean> {
+  const s = await ensureFreshSession(session);
+  if (!s || s.email.toLowerCase() !== ADMIN_EMAIL) return false;
+  const okLead = await deleteDoc('leads', leadId, s);
+  if (reportId) await deleteDoc('reports', reportId, s);
+  return okLead;
+}
+
 /**
  * Admin only: permanently delete every student lead and every saved report.
  * Used to reset the database before a fresh round of school testing.

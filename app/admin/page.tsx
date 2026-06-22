@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Loader2, ShieldAlert, Search, Mail, FileText, CheckCircle2, AlertCircle,
-  LogOut, Users, Star, Send, School, Plus,
+  LogOut, Users, Star, Send, School, Plus, Trash2,
 } from 'lucide-react';
 import Logo from '@/components/brand/Logo';
 import {
   ADMIN_EMAIL, getSession, signOut, listLeads, markLeadEmailed,
-  listSchools, createSchool, updateLeadSchool, clearAllStudentData,
+  listSchools, createSchool, updateLeadSchool, clearAllStudentData, deleteStudent,
   type FbSession, type LeadRecord, type SchoolRecord,
 } from '@/lib/firebase';
 import { generateReportPdfBlob, blobToBase64 } from '@/lib/client-pdf';
@@ -33,6 +33,8 @@ export default function AdminPage() {
   const [clearConfirm, setClearConfirm] = useState('');
   const [clearing, setClearing] = useState(false);
   const [clearMsg, setClearMsg] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const s = getSession();
@@ -89,6 +91,15 @@ export default function AdminPage() {
     const todayCount = leads.filter((l) => l.createTime && new Date(l.createTime).toDateString() === today).length;
     return { total, avgRating, emailed, todayCount };
   }, [leads]);
+
+  async function removeStudent(lead: LeadRecord) {
+    setDeletingId(lead.id);
+    const ok = await deleteStudent(lead.id, lead.reportId ? String(lead.reportId) : undefined, session);
+    setDeletingId(null);
+    setConfirmDelete(null);
+    if (ok) setLeads((rows) => rows.filter((r) => r.id !== lead.id));
+    else setRowError((e) => ({ ...e, [lead.id]: 'Could not delete — check Firestore delete permissions.' }));
+  }
 
   async function handleClearAll() {
     if (clearConfirm.trim().toUpperCase() !== 'DELETE' || clearing) return;
@@ -284,6 +295,20 @@ export default function AdminPage() {
                                 <FileText className="w-3.5 h-3.5" /> View
                               </a>
                             ) : null}
+                            {confirmDelete === l.id ? (
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold">
+                                <button onClick={() => removeStudent(l)} disabled={deletingId === l.id}
+                                  className="inline-flex items-center gap-1 text-red disabled:opacity-50">
+                                  {deletingId === l.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />} Delete
+                                </button>
+                                <button onClick={() => setConfirmDelete(null)} className="text-ink-4 hover:text-ink">Cancel</button>
+                              </span>
+                            ) : (
+                              <button onClick={() => setConfirmDelete(l.id)} title="Delete this student"
+                                className="inline-flex items-center text-ink-4 hover:text-red">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                           {rowError[l.id] ? (
                             <p className="mt-1 flex items-center gap-1 text-[11px] text-red"><AlertCircle className="w-3 h-3" /> {rowError[l.id]}</p>
