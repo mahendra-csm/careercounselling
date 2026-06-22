@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Loader2, ShieldAlert, Search, Mail, FileText, CheckCircle2, AlertCircle,
-  LogOut, Users, Star, Send, School, Plus, Trash2,
+  LogOut, Users, Star, Send, School, Plus, Trash2, Download,
 } from 'lucide-react';
 import Logo from '@/components/brand/Logo';
 import {
@@ -91,6 +91,33 @@ export default function AdminPage() {
     const todayCount = leads.filter((l) => l.createTime && new Date(l.createTime).toDateString() === today).length;
     return { total, avgRating, emailed, todayCount };
   }, [leads]);
+
+  // Export the currently-shown students (respects the school filter + search) to
+  // a CSV that opens in Excel — i.e. select a school, then export that school.
+  function exportCsv() {
+    const cols: [string, string][] = [
+      ['Name', 'name'], ['Email', 'email'], ['Phone', 'phone'], ['School', 'school'],
+      ['Place', 'location'], ['Class', 'class'], ['Age', 'age'], ['Completion %', 'completion'],
+      ['Overall score', 'overallScore'], ['Milestone', 'milestone'], ['Stage', 'stage'],
+      ['Report ID', 'reportId'], ['Report sent', 'emailed'], ['Sent at', 'emailedAt'],
+      ['Created', 'createTime'],
+    ];
+    const esc = (v: unknown) => {
+      const s = v === undefined || v === null ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = cols.map((c) => c[0]).join(',');
+    const body = filtered.map((r) => cols.map((c) => esc((r as Record<string, unknown>)[c[1]])).join(',')).join('\n');
+    const csv = `﻿${header}\n${body}`; // BOM so Excel reads UTF-8
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const label = (schoolFilter || 'all-schools').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    a.href = url;
+    a.download = `onegrasp-students-${label}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function removeStudent(lead: LeadRecord) {
     setDeletingId(lead.id);
@@ -221,11 +248,18 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* search */}
-        <div className="relative mb-4 max-w-sm">
-          <Search className="w-4 h-4 text-ink-4 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, email, phone, school…"
-            className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-line bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+        {/* search + export */}
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="relative max-w-sm flex-1 min-w-[220px]">
+            <Search className="w-4 h-4 text-ink-4 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, email, phone, school…"
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-line bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+          </div>
+          <button onClick={exportCsv} disabled={!filtered.length}
+            className="inline-flex items-center gap-1.5 bg-white border border-line text-ink-2 text-sm font-semibold px-3.5 py-2.5 rounded-xl hover:border-red-line disabled:opacity-50">
+            <Download className="w-4 h-4 text-red" />
+            Export {schoolFilter ? `“${schoolFilter}”` : 'all'} ({filtered.length}) to Excel
+          </button>
         </div>
 
         <div className="bg-white border border-line rounded-2xl shadow-sm overflow-hidden">

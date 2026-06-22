@@ -144,11 +144,6 @@ export default function AssessmentFlow() {
   const [reportId, setReportId] = useState('');
   const [completionPct, setCompletionPct] = useState(0);
   const [klass, setKlass] = useState('');
-  const [rating, setRating] = useState(0);
-  const [recipientEmail, setRecipientEmail] = useState('');
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [sendError, setSendError] = useState('');
 
   const milestoneLabel = MILESTONES.find((m) => m.id === milestone)?.label ?? '';
   const doingOptions = milestoneLabel
@@ -170,7 +165,7 @@ export default function AssessmentFlow() {
   const isValidPassword = password.trim().length >= 6;
   const canNextMilestone = isValidName && milestone;
   const canNextStage = currentDoing && stage;
-  const canStart = isValidEmail && isValidPhone && isValidAge && isValidLocation && isValidSchool && notRobot && isValidPassword;
+  const canStart = isValidEmail && isValidPhone && isValidAge && isValidLocation && isValidSchool && Boolean(klass) && notRobot && isValidPassword;
 
   // section boundaries
   const firstIndexOf = useMemo(() => {
@@ -235,7 +230,7 @@ export default function AssessmentFlow() {
       const pct = Math.round((Object.keys(answers).length / total) * 100);
       setReportId(id);
       setCompletionPct(pct);
-      setRecipientEmail(email.trim());
+      let overall = 0;
 
       // A career report is ONLY generated when at least 70% of the questions
       // were attempted. Below that, the completion screen explains why.
@@ -247,6 +242,7 @@ export default function AssessmentFlow() {
         profile.place = location.trim() || undefined;
         profile.klass = klass || undefined;
         profile.examDate = new Date().toISOString();
+        overall = profile.overallScore ?? 0;
 
         step('Building your personalised report…', 60);
         saveLocalReport(id, profile);
@@ -254,19 +250,7 @@ export default function AssessmentFlow() {
         // Cloud-save is an enhancement — failures must not block the student.
         step('Saving your report…', 85);
         try {
-          const emailValue = email.trim();
-          const passwordValue = password.trim();
-          let session = getSession();
-          if (!session && emailValue && passwordValue) {
-            try {
-              session = await signUp(emailValue, passwordValue, name.trim());
-            } catch (err) {
-              const code = (err as { code?: string } | null)?.code ?? '';
-              if (code.includes('EMAIL_EXISTS')) {
-                try { session = await signIn(emailValue, passwordValue); } catch { /* wrong pw */ }
-              }
-            }
-          }
+          const session = getSession();
           if (session) {
             const { saveReport } = await import('@/lib/firebase');
             await saveReport(id, profile, session);
@@ -276,6 +260,24 @@ export default function AssessmentFlow() {
         }
       }
 
+      // Always store/refresh the FULL student lead (with completion + report id)
+      // for the admin dashboard — every student is recorded, report or not.
+      try {
+        const session2 = getSession();
+        const fullPhone = phone.trim() ? `${countryCode} ${phone.trim()}` : '';
+        const { saveLead } = await import('@/lib/firebase');
+        await saveLead({
+          name: name.trim(), email: email.trim(), phone: fullPhone, class: klass || '—',
+          school: school.trim(), rating: 0, recipientEmail: email.trim(),
+          reportId: pct >= 70 ? id : '', completion: pct, overallScore: overall,
+          milestone, stage, location, age, currentDoing,
+        }, session2);
+      } catch {
+        // best-effort
+      }
+
+      // Clear the session so the next student on a shared computer starts clean.
+      signOut();
       step('Done!', 100);
       setSubmitting(false);
       setDone(true);
@@ -295,35 +297,12 @@ export default function AssessmentFlow() {
       const { saveLead } = await import('@/lib/firebase');
       return await saveLead({
         name: name.trim(), email: email.trim(), phone: fullPhone, class: klass || '—',
-        school: school.trim(), rating, recipientEmail: recipientEmail.trim() || email.trim(),
+        school: school.trim(), rating: 0, recipientEmail: email.trim(),
         reportId, completion: completionPct, overallScore: 0, milestone, stage, location, age,
         currentDoing,
       }, session);
     } catch {
       return false;
-    }
-  };
-
-  // Saves the student's lead to Firebase. The report is NOT emailed here — the
-  // OneGrasp team reviews leads in the admin dashboard and sends each report
-  // manually with one click.
-  const sendReport = async () => {
-    setSendError('');
-    const recipient = recipientEmail.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) { setSendError('Enter a valid email.'); return; }
-    if (!klass) { setSendError('Please select your class.'); return; }
-    if (!rating) { setSendError('Please rate your exam out of 10.'); return; }
-    setSending(true);
-    try {
-      const ok = await persistLead();
-      if (!ok) throw new Error('Could not save your details. Please try again.');
-      // Require a fresh login to view the report on the dashboard.
-      signOut();
-      setSent(true);
-    } catch (err) {
-      setSendError(err instanceof Error ? err.message : 'Could not save your details. Please try again.');
-    } finally {
-      setSending(false);
     }
   };
 
@@ -365,14 +344,9 @@ export default function AssessmentFlow() {
     } catch (err) {
       const code = (err as { code?: string } | null)?.code ?? '';
       if (code.includes('EMAIL_EXISTS')) {
-        // Email already registered — confirm the password matches by signing in.
-        try {
-          await signIn(email.trim(), password.trim());
-          void persistLead();
-          setPhase(3);
-        } catch {
-          setAuthError('This email is already registered. Enter the password you set earlier, or sign in instead.');
-        }
+        // One exam per email. If the email is already registered, the student
+        // has already taken (or started) the assessment — do not let them write it again.
+        setAuthError('This email has already been used for the assessment. Each email can take the exam only once — please use a different email address.');
       } else {
         setAuthError(err instanceof Error ? err.message : 'Could not set up your account. Please try again.');
       }
@@ -518,14 +492,13 @@ export default function AssessmentFlow() {
     );
   }
 
-  /* ---------- completion + lead capture ---------- */
+  /* ---------- completion + thank-you ---------- */
   if (done) {
-    const recipientValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim());
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-10">
-        <div className="max-w-lg w-full bg-white rounded-2xl border border-line shadow-md p-6 sm:p-8">
+        <div className="max-w-lg w-full bg-white rounded-2xl border border-line shadow-md p-6 sm:p-8 text-center">
           {completionPct < 70 ? (
-            <div className="text-center">
+            <>
               <div className="w-16 h-16 rounded-full bg-yellow-50 flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle className="w-9 h-9 text-warning" />
               </div>
@@ -538,109 +511,21 @@ export default function AssessmentFlow() {
               </div>
               <p className="text-xs text-ink-4 mb-5">Please retake the assessment and attempt at least 70% of the questions to receive your report.</p>
               <Link href="/" className="w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow">Back to home</Link>
-            </div>
-          ) : !sent ? (
-            <>
-              <div className="text-center">
-                <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle2 className="w-9 h-9 text-success" />
-                </div>
-                <h2 className="text-2xl font-extrabold text-ink mb-1">
-                  Well done{name ? `, ${name.split(' ')[0]}` : ''}! 🎉
-                </h2>
-                <p className="text-sm text-ink-3">
-                  You&apos;ve successfully completed the assessment — <b className="text-ink">{completionPct}% completed</b>.
-                </p>
-                <div className="mt-3 h-2 w-full rounded-full bg-line-2 overflow-hidden">
-                  <div className="h-full rounded-full bg-success" style={{ width: `${completionPct}%` }} />
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <p className="text-sm font-bold text-ink mb-3">Confirm your details to receive your report</p>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-ink-2 block mb-1">Name</label>
-                    <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-ink-2 block mb-1">Phone</label>
-                    <input value={phone ? `${countryCode} ${phone}` : ''} readOnly className="w-full px-3 py-2.5 rounded-xl border border-line bg-line-2/40 text-sm text-ink-3" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-ink-2 block mb-1">Email</label>
-                    <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="w-full px-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-ink-2 block mb-1">Class</label>
-                    <select value={klass} onChange={(e) => setKlass(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red">
-                      <option value="">Select your class</option>
-                      {CLASS_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-ink-2 block mb-1">School</label>
-                    <input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="Your school name" className="w-full px-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
-                    {school.trim() && !isValidSchool && <p className="text-[11px] text-red mt-1">Enter your school name.</p>}
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-ink-2 block mb-1">Place / City</label>
-                    <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Your city / town" className="w-full px-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
-                    {location.trim() && !isValidLocation && <p className="text-[11px] text-red mt-1">Enter your place / city.</p>}
-                  </div>
-                </div>
-
-                <div className="mt-3">
-                  <label className="text-xs font-semibold text-ink-2 block mb-1.5">How would you rate your exam experience? <span className="text-ink-4 font-normal">(1–10)</span></label>
-                  <div className="grid grid-cols-10 gap-1.5">
-                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                      <button key={n} type="button" onClick={() => setRating(n)}
-                        className={`h-9 rounded-lg text-sm font-bold transition-all ${rating === n ? 'bg-red text-white' : 'bg-bg border border-line text-ink-3 hover:border-red-line'}`}>
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-3">
-                  <label className="text-xs font-semibold text-ink-2 block mb-1">Email to receive your report</label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-ink-4 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} type="email" placeholder="you@email.com"
-                      className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
-                  </div>
-                  <p className="text-[11px] text-ink-4 mt-1">Our counsellors will review and email your report here from support@onegrasp.com.</p>
-                </div>
-
-                {sendError && (
-                  <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-line bg-red-soft p-3 text-sm text-red">
-                    <AlertCircle className="w-4 h-4 mt-px shrink-0" /> <span>{sendError}</span>
-                  </div>
-                )}
-
-                {(!isValidSchool || !isValidLocation) && (
-                  <p className="mt-3 text-[11px] text-ink-4">Please fill in your school and place so they appear on your report.</p>
-                )}
-                <button onClick={sendReport} disabled={sending || !recipientValid || !klass || !rating || !isValidSchool || !isValidLocation}
-                  className="mt-3 w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow disabled:opacity-50 disabled:shadow-none">
-                  {sending ? (<><Loader2 className="w-4 h-4 animate-spin" /> Saving your details…</>) : (<><CheckCircle2 className="w-4 h-4" /> Submit &amp; finish</>)}
-                </button>
-              </div>
             </>
           ) : (
-            <div className="text-center">
+            <>
               <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="w-9 h-9 text-success" />
               </div>
-              <h2 className="text-2xl font-extrabold text-ink mb-1">All done! 🎉</h2>
+              <h2 className="text-2xl font-extrabold text-ink mb-1">Thank you{name ? `, ${name.split(' ')[0]}` : ''}! 🎉</h2>
               <p className="text-sm text-ink-3 mb-4">
-                Thanks{name ? `, ${name.split(' ')[0]}` : ''}! Your assessment is submitted. Our counsellors will review it and email your Career Discovery Report to <b className="text-ink">{recipientEmail}</b> shortly.
+                Your assessment is submitted successfully. Our counsellors will review it and email your <b className="text-ink">Career Discovery Report</b> to <b className="text-ink">{email}</b> shortly.
               </p>
               <div className="text-left bg-bg border border-line rounded-xl p-4 mb-5">
                 <p className="text-sm font-bold text-ink mb-2 flex items-center gap-1.5"><Mail className="w-4 h-4 text-red" /> What happens next</p>
                 <ul className="text-sm text-ink-2 space-y-1.5 list-disc pl-5">
                   <li>Your detailed report is prepared and reviewed by our team.</li>
-                  <li>We email it to <b className="text-ink">{recipientEmail}</b> — no login needed.</li>
+                  <li>We email it to <b className="text-ink">{email}</b> — no login needed.</li>
                   <li>Have a question meanwhile? Reach us on WhatsApp or email.</li>
                 </ul>
               </div>
@@ -648,7 +533,7 @@ export default function AssessmentFlow() {
                 className="w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow">
                 Done <ChevronRight className="w-4 h-4" />
               </button>
-            </div>
+            </>
           )}
         </div>
       </div>
@@ -879,6 +764,15 @@ export default function AssessmentFlow() {
                 <Field label="School name" value={school} onChange={setSchool}
                   placeholder="Your school name"
                   error={school.trim() && !isValidSchool ? 'Enter your school name.' : ''} />
+                <div>
+                  <label className="text-sm font-semibold text-ink-2 block mb-1.5">Class / Grade</label>
+                  <select value={klass} onChange={(e) => setKlass(e.target.value)}
+                    className="w-full px-3 py-3 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red">
+                    <option value="">Select your class</option>
+                    {CLASS_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  {!klass && <p className="text-[11px] text-ink-4 mt-1">Required — shown on your report.</p>}
+                </div>
                 <div className="sm:col-span-2">
                   <label className="text-sm font-semibold text-ink-2 block mb-1.5">Create a password <span className="text-ink-4 font-normal">(min 6 characters)</span></label>
                   <div className="relative">
