@@ -578,9 +578,15 @@ export default function AssessmentFlow() {
                       {CLASS_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
-                  <div className="sm:col-span-2">
+                  <div>
                     <label className="text-xs font-semibold text-ink-2 block mb-1">School</label>
                     <input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="Your school name" className="w-full px-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+                    {school.trim() && !isValidSchool && <p className="text-[11px] text-red mt-1">Enter your school name.</p>}
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-ink-2 block mb-1">Place / City</label>
+                    <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Your city / town" className="w-full px-3 py-2.5 rounded-xl border border-line bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+                    {location.trim() && !isValidLocation && <p className="text-[11px] text-red mt-1">Enter your place / city.</p>}
                   </div>
                 </div>
 
@@ -612,8 +618,11 @@ export default function AssessmentFlow() {
                   </div>
                 )}
 
-                <button onClick={sendReport} disabled={sending || !recipientValid || !klass || !rating}
-                  className="mt-5 w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow disabled:opacity-50 disabled:shadow-none">
+                {(!isValidSchool || !isValidLocation) && (
+                  <p className="mt-3 text-[11px] text-ink-4">Please fill in your school and place so they appear on your report.</p>
+                )}
+                <button onClick={sendReport} disabled={sending || !recipientValid || !klass || !rating || !isValidSchool || !isValidLocation}
+                  className="mt-3 w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow disabled:opacity-50 disabled:shadow-none">
                   {sending ? (<><Loader2 className="w-4 h-4 animate-spin" /> Saving your details…</>) : (<><CheckCircle2 className="w-4 h-4" /> Submit &amp; finish</>)}
                 </button>
               </div>
@@ -625,19 +634,19 @@ export default function AssessmentFlow() {
               </div>
               <h2 className="text-2xl font-extrabold text-ink mb-1">All done! 🎉</h2>
               <p className="text-sm text-ink-3 mb-4">
-                Thanks{name ? `, ${name.split(' ')[0]}` : ''}! Your assessment is submitted and our team will email your Career Discovery Report to <b className="text-ink">{recipientEmail}</b> shortly.
+                Thanks{name ? `, ${name.split(' ')[0]}` : ''}! Your assessment is submitted. Our counsellors will review it and email your Career Discovery Report to <b className="text-ink">{recipientEmail}</b> shortly.
               </p>
               <div className="text-left bg-bg border border-line rounded-xl p-4 mb-5">
-                <p className="text-sm font-bold text-ink mb-2 flex items-center gap-1.5"><KeyRound className="w-4 h-4 text-red" /> To view your report:</p>
-                <ol className="text-sm text-ink-2 space-y-1.5 list-decimal pl-5">
-                  <li>Go to the <b>Sign in</b> page.</li>
-                  <li>Log in with your <b>email</b> (<span className="text-ink">{email}</span>) and the <b>password you created</b>.</li>
-                  <li>Open your report from your <b>dashboard</b>.</li>
-                </ol>
+                <p className="text-sm font-bold text-ink mb-2 flex items-center gap-1.5"><Mail className="w-4 h-4 text-red" /> What happens next</p>
+                <ul className="text-sm text-ink-2 space-y-1.5 list-disc pl-5">
+                  <li>Your detailed report is prepared and reviewed by our team.</li>
+                  <li>We email it to <b className="text-ink">{recipientEmail}</b> — no login needed.</li>
+                  <li>Have a question meanwhile? Reach us on WhatsApp or email.</li>
+                </ul>
               </div>
-              <button onClick={() => router.push('/sign-in')}
+              <button onClick={() => router.push('/')}
                 className="w-full inline-flex items-center justify-center gap-2 bg-red text-white font-semibold py-3 rounded-xl shadow-glow">
-                Sign in to view your report <ChevronRight className="w-4 h-4" />
+                Done <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           )}
