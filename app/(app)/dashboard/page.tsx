@@ -4,16 +4,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
-  ArrowRight, Loader2, MessageCircle, Phone, Mail, Sparkles,
+  ArrowRight, Loader2, MessageCircle, Phone, Mail, Sparkles, CheckCircle2,
   Building2, Globe2, Plane, FileText, Library, Rocket, Search,
   Briefcase, GraduationCap, TrendingUp, type LucideIcon,
 } from 'lucide-react';
 import { getSession } from '@/lib/firebase';
 import { getLastReportId, getLocalReport } from '@/lib/report-store';
 import type { PsychometricProfile } from '@/lib/psychometric';
-import AssessmentResults from '@/components/dashboard/AssessmentResults';
-import BestFitMatches from '@/components/dashboard/BestFitMatches';
-import CareerRoadmap from '@/components/dashboard/CareerRoadmap';
 
 type Module = { title: string; desc: string; icon: LucideIcon; href: string; from: string; to: string };
 
@@ -25,25 +22,12 @@ const MODULES: Module[] = [
   { title: 'Abroad Colleges', desc: '8,000+ universities across 22+ countries.', icon: Globe2, href: '/dashboard/abroad-colleges', from: '#11998E', to: '#0A5E58' },
   { title: 'Abroad Applications', desc: 'Study-abroad profiling, SOP & visa help.', icon: Plane, href: '/dashboard/abroad-applications', from: '#6366F1', to: '#3B2E8F' },
   { title: 'Entrance Exams', desc: '1,400+ entrance test details & dates.', icon: FileText, href: '/dashboard/exams', from: '#EB5757', to: '#9B1B22' },
-  { title: 'Career Analysis', desc: 'Revisit your psychometric profile.', icon: Search, href: '/dashboard/career-analysis', from: '#2D9CDB', to: '#1B6491' },
+  { title: 'Career Analysis', desc: 'Take or retake your career assessment.', icon: Search, href: '/dashboard/career-analysis', from: '#2D9CDB', to: '#1B6491' },
 ];
-
-function Ring({ value }: { value: number }) {
-  const r = 34, c = 2 * Math.PI * r, off = c - (Math.max(0, Math.min(100, value)) / 100) * c;
-  return (
-    <svg width={88} height={88} viewBox="0 0 84 84" className="shrink-0">
-      <circle cx="42" cy="42" r={r} fill="none" stroke="#F1F1F4" strokeWidth="8" />
-      <circle cx="42" cy="42" r={r} fill="none" stroke="#E0242E" strokeWidth="8" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} transform="rotate(-90 42 42)" />
-      <text x="42" y="40" textAnchor="middle" dominantBaseline="central" fill="#18191D" style={{ fontSize: 20, fontWeight: 800 }}>{value}</text>
-      <text x="42" y="56" textAnchor="middle" dominantBaseline="central" fill="#9B9DA6" style={{ fontSize: 8, letterSpacing: '0.1em' }}>FIT</text>
-    </svg>
-  );
-}
 
 export default function DashboardPage() {
   const [name, setName] = useState('');
   const [report, setReport] = useState<PsychometricProfile | null>(null);
-  const [reportId, setReportId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,15 +36,13 @@ export default function DashboardPage() {
     const lastId = getLastReportId();
     if (lastId) {
       const local = getLocalReport(lastId);
-      if (local) { setReport(local); setReportId(lastId); }
+      if (local) setReport(local);
     }
     setLoading(false);
   }, []);
 
   const firstName = (name || report?.name || 'there').split(' ')[0];
   const hasReport = Boolean(report);
-  const fit = report ? Math.min(100, report.overallScore) : 0;
-  const reportHref = reportId ? `/report/view?id=${reportId}` : '/assessment';
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-7 h-7 text-red animate-spin" /></div>;
@@ -78,19 +60,14 @@ export default function DashboardPage() {
             <h1 className="text-3xl font-extrabold mt-0.5 text-ink">Hi {firstName} 👋</h1>
             <p className="text-ink-3 text-sm mt-1.5 max-w-lg">
               {hasReport
-                ? 'Your career command centre — your report, colleges, exams, internships and boosters in one place.'
-                : 'Discover careers that fit you. Take the assessment to unlock your personalised report and roadmap.'}
+                ? 'Your assessment is complete. Our team will review it and email your detailed career report to you shortly.'
+                : 'Discover careers that fit you. Take the assessment and our counsellors will prepare and email your personalised report.'}
             </p>
             <div className="flex flex-wrap gap-2.5 mt-4">
               {hasReport ? (
-                <>
-                  <Link href={reportHref} className="inline-flex items-center gap-2 bg-red text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-glow hover:bg-red-dark">
-                    View career report <ArrowRight className="w-4 h-4" />
-                  </Link>
-                  <a href="https://wa.me/918977760443" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-bg text-ink-2 text-sm font-semibold px-4 py-2.5 rounded-xl border border-line hover:bg-line-2">
-                    <MessageCircle className="w-4 h-4" /> Talk to a counsellor
-                  </a>
-                </>
+                <a href="https://wa.me/918977760443" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-red text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-glow hover:bg-red-dark">
+                  <MessageCircle className="w-4 h-4" /> Talk to a counsellor
+                </a>
               ) : (
                 <Link href="/assessment" className="inline-flex items-center gap-2 bg-red text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow-glow hover:bg-red-dark">
                   Start career assessment <ArrowRight className="w-4 h-4" />
@@ -99,36 +76,32 @@ export default function DashboardPage() {
             </div>
           </div>
           {hasReport && (
-            <div className="flex items-center gap-4 sm:border-l sm:border-line sm:pl-6">
-              <Ring value={fit} />
+            <div className="flex items-center gap-3 sm:border-l sm:border-line sm:pl-6">
+              <div className="w-12 h-12 rounded-2xl bg-success/10 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-6 h-6 text-success" />
+              </div>
               <div className="text-sm">
-                <p className="font-bold leading-tight text-ink">{report?.matchLabel ?? 'Career fit'}</p>
-                <p className="text-ink-4 text-xs mt-0.5">Top domain</p>
-                <p className="font-semibold text-[13px] leading-tight text-ink-2">{report?.topCareers?.[0]?.cluster ?? report?.matchLabel ?? '—'}</p>
+                <p className="font-bold leading-tight text-ink">Assessment complete</p>
+                <p className="text-ink-4 text-xs mt-0.5 max-w-[180px]">Your report will be sent to your email.</p>
               </div>
             </div>
           )}
         </div>
       </motion.div>
 
-      {/* ---- Best-fit career matches (Mindler-style) ---- */}
-      {hasReport && report && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.06 }} className="mb-6">
-          <BestFitMatches profile={report} reportHref={reportHref} />
-        </motion.div>
-      )}
-
-      {/* ---- Assessment results (when a report exists) ---- */}
-      {hasReport && report && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
-          <AssessmentResults profile={report} reportHref={reportHref} />
-        </motion.div>
-      )}
-
-      {/* ---- Career roadmap / next steps (Mindler-style planner) ---- */}
-      {hasReport && report && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }} className="mb-8">
-          <CareerRoadmap profile={report} reportHref={reportHref} />
+      {/* ---- Report delivery notice (report is emailed, not shown here) ---- */}
+      {hasReport && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.06 }}
+          className="mb-8 flex items-start gap-3.5 rounded-2xl border border-line bg-white p-5 shadow-sm">
+          <div className="w-11 h-11 rounded-xl bg-success/10 flex items-center justify-center shrink-0">
+            <Mail className="w-5 h-5 text-success" />
+          </div>
+          <div>
+            <p className="font-bold text-ink text-[15px]">Your career report is on its way</p>
+            <p className="text-sm text-ink-3 mt-1 max-w-xl">
+              Our counsellors prepare each report personally and send it to your registered email. You don&apos;t need to do anything — if you have questions in the meantime, talk to a counsellor below.
+            </p>
+          </div>
         </motion.div>
       )}
 

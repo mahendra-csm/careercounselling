@@ -110,6 +110,11 @@ export interface StreamFit { key: string; label: string; score: number; band: st
 export interface PsychometricProfile {
   kind: 'psychometric';
   name: string;
+  /** Identity shown on the report cover + admin panel. */
+  school?: string;
+  place?: string;
+  examDate?: string;
+  klass?: string;
   dreamCareer?: string;
   favoritePath?: string;
   generatedAt: string;

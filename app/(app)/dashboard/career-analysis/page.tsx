@@ -18,11 +18,10 @@ const MEASURES = [
 
 export default function Page() {
   const [report, setReport] = useState<PsychometricProfile | null>(null);
-  const [id, setId] = useState<string | null>(null);
 
   useEffect(() => {
     const last = getLastReportId();
-    if (last) { const r = getLocalReport(last); if (r) { setReport(r); setId(last); } }
+    if (last) { const r = getLocalReport(last); if (r) setReport(r); }
   }, []);
 
   return (
@@ -36,15 +35,8 @@ export default function Page() {
 
       {report && (
         <Card className="p-5 mb-6">
-          <p className="text-xs uppercase tracking-widest text-ink-4 mb-1">Your latest result</p>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <div><span className="text-2xl font-extrabold text-ink">{report.overallScore}</span><span className="text-ink-4 text-sm">/100 · {report.matchLabel}</span></div>
-            <div className="text-sm text-ink-2"><b>Type:</b> {report.mbtiType}</div>
-            <div className="text-sm text-ink-2"><b>Top career:</b> {report.careerFocus}</div>
-            <Link href={`/report/view?id=${id}`} className="ml-auto inline-flex items-center gap-2 bg-red text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-glow">
-              View full report <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
+          <p className="text-xs uppercase tracking-widest text-ink-4 mb-1">Assessment complete</p>
+          <p className="text-sm text-ink-2">Thanks for completing your assessment. Our counsellors review each one personally and email your detailed career report to your registered email — it isn&apos;t shown here.</p>
         </Card>
       )}
 

@@ -969,7 +969,9 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
             <div className="grid grid-cols-[1fr_auto] items-center gap-6 rounded-2xl border p-5" style={{ borderColor: C.line, background: C.faint }}>
               <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                 <div><Eyebrow>Prepared for</Eyebrow><p className="mt-1 text-[24px] font-extrabold" style={{ color: C.ink }}>{profile.name}</p></div>
-                <div><Eyebrow>Generated</Eyebrow><p className="mt-1 text-[14px] font-semibold" style={{ color: C.body }}>{generated}</p></div>
+                <div><Eyebrow>School</Eyebrow><p className="mt-1 text-[14px] font-semibold" style={{ color: C.body }}>{profile.school || '—'}{profile.klass ? ` · Class ${profile.klass}` : ''}</p></div>
+                <div><Eyebrow>Place</Eyebrow><p className="mt-1 text-[14px] font-semibold" style={{ color: C.body }}>{profile.place || '—'}</p></div>
+                <div><Eyebrow>Exam date</Eyebrow><p className="mt-1 text-[14px] font-semibold" style={{ color: C.body }}>{profile.examDate ? new Date(profile.examDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : generated}</p></div>
                 <div><Eyebrow>Reliability</Eyebrow><p className="mt-1 text-[14px] font-semibold" style={{ color: C.body }}>{profile.reliability ? `${profile.reliability.label} (${profile.reliability.percent}%)` : confidence.label} · {confidence.answered}/{confidence.total} answered</p></div>
                 <div><Eyebrow>Top domain</Eyebrow><p className="mt-1 text-[14px] font-semibold" style={{ color: C.body }}>{domains[0]?.label ?? '—'}</p></div>
               </div>

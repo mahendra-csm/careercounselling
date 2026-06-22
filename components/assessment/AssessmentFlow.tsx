@@ -242,6 +242,11 @@ export default function AssessmentFlow() {
       if (pct >= 70) {
         step('Scoring your answers…', 30);
         const profile = scoreAssessment(answers, name, undefined, activeLevel, SAMPLING);
+        // Stamp the report with the student's identity for the cover + admin panel.
+        profile.school = school.trim() || undefined;
+        profile.place = location.trim() || undefined;
+        profile.klass = klass || undefined;
+        profile.examDate = new Date().toISOString();
 
         step('Building your personalised report…', 60);
         saveLocalReport(id, profile);

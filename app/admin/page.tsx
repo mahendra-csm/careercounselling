@@ -9,7 +9,7 @@ import {
 import Logo from '@/components/brand/Logo';
 import {
   ADMIN_EMAIL, getSession, signOut, listLeads, markLeadEmailed,
-  listSchools, createSchool, updateLeadSchool,
+  listSchools, createSchool, updateLeadSchool, clearAllStudentData,
   type FbSession, type LeadRecord, type SchoolRecord,
 } from '@/lib/firebase';
 import { generateReportPdfBlob, blobToBase64 } from '@/lib/client-pdf';
@@ -29,6 +29,10 @@ export default function AdminPage() {
   const [schoolFilter, setSchoolFilter] = useState(''); // '' = all
   const [newSchool, setNewSchool] = useState('');
   const [creating, setCreating] = useState(false);
+  const [showDanger, setShowDanger] = useState(false);
+  const [clearConfirm, setClearConfirm] = useState('');
+  const [clearing, setClearing] = useState(false);
+  const [clearMsg, setClearMsg] = useState('');
 
   useEffect(() => {
     const s = getSession();
@@ -85,6 +89,17 @@ export default function AdminPage() {
     const todayCount = leads.filter((l) => l.createTime && new Date(l.createTime).toDateString() === today).length;
     return { total, avgRating, emailed, todayCount };
   }, [leads]);
+
+  async function handleClearAll() {
+    if (clearConfirm.trim().toUpperCase() !== 'DELETE' || clearing) return;
+    setClearing(true);
+    setClearMsg('');
+    const res = await clearAllStudentData(session);
+    setClearing(false);
+    setClearConfirm('');
+    setLeads([]);
+    setClearMsg(`Cleared ${res.leadsDeleted} student(s) and ${res.reportsDeleted} report(s).${res.failed ? ` ${res.failed} could not be removed — check Firestore delete permissions.` : ''}`);
+  }
 
   async function sendReport(lead: LeadRecord) {
     const to = String(lead.recipientEmail || lead.email || '').trim();
@@ -215,6 +230,7 @@ export default function AdminPage() {
                     <th className="px-4 py-3 font-semibold">Student</th>
                     <th className="px-4 py-3 font-semibold">Contact</th>
                     <th className="px-4 py-3 font-semibold">School</th>
+                    <th className="px-4 py-3 font-semibold">Place</th>
                     <th className="px-4 py-3 font-semibold">Class</th>
                     <th className="px-4 py-3 font-semibold">Rating</th>
                     <th className="px-4 py-3 font-semibold">Done</th>
@@ -245,6 +261,7 @@ export default function AdminPage() {
                             {schoolNames.map((n) => <option key={n} value={n}>{n}</option>)}
                           </select>
                         </td>
+                        <td className="px-4 py-3 text-ink-2">{String(l.location || '—')}</td>
                         <td className="px-4 py-3 text-ink-2">{String(l.class || '—')}</td>
                         <td className="px-4 py-3 text-ink-2">{l.rating ? `${l.rating}/10` : '—'}</td>
                         <td className="px-4 py-3 text-ink-2">{l.completion != null ? `${l.completion}%` : '—'}</td>
@@ -277,6 +294,29 @@ export default function AdminPage() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+
+        {/* Danger zone — wipe all student data before a fresh testing round */}
+        <div className="mt-6 rounded-2xl border border-red-line bg-red-soft/40 p-4">
+          <button onClick={() => setShowDanger((v) => !v)} className="flex items-center gap-2 text-sm font-bold text-red">
+            <ShieldAlert className="w-4 h-4" /> Danger zone {showDanger ? '▴' : '▾'}
+          </button>
+          {showDanger && (
+            <div className="mt-3 max-w-xl">
+              <p className="text-xs text-ink-3 mb-3">
+                Permanently delete <b>all {leads.length} student record(s) and their reports</b>. Use this to reset before a new round of school testing. This cannot be undone. Type <b>DELETE</b> to confirm.
+              </p>
+              <div className="flex items-center gap-2">
+                <input value={clearConfirm} onChange={(e) => setClearConfirm(e.target.value)} placeholder="Type DELETE"
+                  className="w-40 px-3 py-2 rounded-xl border border-line bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red/30 focus:border-red" />
+                <button onClick={handleClearAll} disabled={clearing || clearConfirm.trim().toUpperCase() !== 'DELETE'}
+                  className="inline-flex items-center gap-1.5 bg-red text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-glow disabled:opacity-50">
+                  {clearing ? <><Loader2 className="w-4 h-4 animate-spin" /> Clearing…</> : 'Clear all data'}
+                </button>
+              </div>
+              {clearMsg && <p className="mt-2 text-xs font-semibold text-ink-2">{clearMsg}</p>}
             </div>
           )}
         </div>

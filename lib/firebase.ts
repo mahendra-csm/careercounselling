@@ -325,6 +325,58 @@ export async function markLeadEmailed(id: string, session: FbSession | null): Pr
   }
 }
 
+/** Admin only: list every document id in a collection. */
+async function listDocIds(collection: string, session: FbSession): Promise<string[]> {
+  const ids: string[] = [];
+  let pageToken = '';
+  try {
+    do {
+      const url = `${FIRESTORE}/${collection}?pageSize=300&key=${firebaseConfig.apiKey}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${session.idToken}` } });
+      if (!res.ok) break;
+      const data = await res.json();
+      for (const doc of data.documents ?? []) ids.push(String(doc.name).split('/').pop() as string);
+      pageToken = data.nextPageToken ?? '';
+    } while (pageToken);
+  } catch { /* return what we have */ }
+  return ids;
+}
+
+async function deleteDoc(collection: string, id: string, session: FbSession): Promise<boolean> {
+  try {
+    const res = await fetch(`${FIRESTORE}/${collection}/${id}?key=${firebaseConfig.apiKey}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${session.idToken}` },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Admin only: permanently delete every student lead and every saved report.
+ * Used to reset the database before a fresh round of school testing.
+ * Returns counts of what was removed (and any that failed).
+ */
+export async function clearAllStudentData(
+  session: FbSession | null
+): Promise<{ leadsDeleted: number; reportsDeleted: number; failed: number }> {
+  const s = await ensureFreshSession(session);
+  if (!s || s.email.toLowerCase() !== ADMIN_EMAIL) return { leadsDeleted: 0, reportsDeleted: 0, failed: 0 };
+
+  // Gather report ids from the reports collection AND from each lead (belt and braces).
+  const leadIds = await listDocIds('leads', s);
+  const reportIdsFromCollection = await listDocIds('reports', s);
+  const reportIdsFromLeads = (await listLeads(s)).map((l) => String(l.reportId ?? '')).filter(Boolean);
+  const reportIds = Array.from(new Set([...reportIdsFromCollection, ...reportIdsFromLeads]));
+
+  let leadsDeleted = 0; let reportsDeleted = 0; let failed = 0;
+  for (const id of leadIds) { (await deleteDoc('leads', id, s)) ? leadsDeleted++ : failed++; }
+  for (const id of reportIds) { (await deleteDoc('reports', id, s)) ? reportsDeleted++ : failed++; }
+  return { leadsDeleted, reportsDeleted, failed };
+}
+
 /** Read a report by id from Firestore. Returns parsed profile or null. */
 export async function loadReport(id: string, session: FbSession | null): Promise<any | null> {
   try {
