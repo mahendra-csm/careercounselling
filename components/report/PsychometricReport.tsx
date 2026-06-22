@@ -763,7 +763,7 @@ function JourneyPage({ page, name }: { page: number; name: string }) {
   );
 }
 
-function StagePage({ page, name }: { page: number; name: string }) {
+function StagePage({ page, name, score }: { page: number; name: string; score: number }) {
   const stages: [string, string][] = [
     ['Unaware', 'Not yet thinking about careers'],
     ['Confused', 'Many options, no direction'],
@@ -771,7 +771,17 @@ function StagePage({ page, name }: { page: number; name: string }) {
     ['Clarity', 'Know your strengths & best-fit domains'],
     ['Future-Ready', 'Acting on a clear plan'],
   ];
-  const activeIdx = 3; // Clarity — reached on completing the assessment
+  // Derived from the student's overall profile strength — varies per report.
+  // Floored at "Confused" since completing the assessment moves you past "Unaware".
+  const activeIdx = score >= 80 ? 4 : score >= 66 ? 3 : score >= 50 ? 2 : 1;
+  const activeLabel = stages[activeIdx][0];
+  const nextLabel = activeIdx >= 4 ? 'Staying Future-Ready' : stages[activeIdx + 1][0];
+  const HERE: Record<number, string> = {
+    1: 'You have options in mind but not yet a clear direction. This report gives you an evidence-based starting point to move forward with confidence.',
+    2: 'You are actively exploring your options. This report narrows the field to the domains that genuinely fit your strengths and interests.',
+    3: 'You now know your strengths and best-fit domains — the foundation for confident subject and career decisions.',
+    4: 'Your profile is strong and well-aligned. You are ready to act on a focused plan towards your top domains.',
+  };
   const caretLeft = `${(activeIdx + 0.5) * 20}%`;
   return (
     <PageFrame page={page} kicker="Where you are now" name={name}>
@@ -779,7 +789,7 @@ function StagePage({ page, name }: { page: number; name: string }) {
         <div className="text-center">
           <Eyebrow color={C.blue}>Your planning stage</Eyebrow>
           <h2 className="mt-1 text-[26px] font-extrabold" style={{ color: C.ink }}>Current Stage of Planning</h2>
-          <p className="mt-1 text-[12.5px]" style={{ color: C.body }}>Most students move through five stages. Completing this assessment moves you into <b style={{ color: C.blue }}>Clarity</b>.</p>
+          <p className="mt-1 text-[12.5px]" style={{ color: C.body }}>Most students move through five stages. Based on your answers, you are at the <b style={{ color: C.blue }}>{activeLabel}</b> stage.</p>
         </div>
 
         {/* Stepper with a filled progress line + enlarged active node */}
@@ -804,8 +814,8 @@ function StagePage({ page, name }: { page: number; name: string }) {
           <span className="absolute -top-[9px]" style={{ left: caretLeft, transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderBottom: `10px solid ${C.blue}` }} />
           <div className="rounded-2xl px-6 py-4 text-center text-white" style={{ background: `linear-gradient(135deg, ${C.blue}, ${C.navy})` }}>
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">You are here</p>
-            <p className="text-[22px] font-extrabold leading-tight">Clarity</p>
-            <p className="mx-auto mt-1 max-w-md text-[12px] text-white/85">You now know your strengths and best-fit domains — the foundation for confident subject and career decisions.</p>
+            <p className="text-[22px] font-extrabold leading-tight">{activeLabel}</p>
+            <p className="mx-auto mt-1 max-w-md text-[12px] text-white/85">{HERE[activeIdx]}</p>
           </div>
         </div>
 
@@ -816,8 +826,8 @@ function StagePage({ page, name }: { page: number; name: string }) {
             <p className="mt-1.5 text-[12px] leading-5" style={{ color: C.body }}>You&apos;ve moved past confusion and broad exploration. This report gives you a clear, evidence-based picture of where you fit — use it to choose subjects and shortlist directions with confidence.</p>
           </div>
           <div className="rounded-2xl border p-4" style={{ borderColor: C.line }}>
-            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.green }}>Your next stage · Future-Ready</p>
-            <p className="mt-1.5 text-[12px] leading-5" style={{ color: C.body }}>Turn clarity into action: explore your top domains, build the skills they reward, and follow a step-by-step plan towards your goal.</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.green }}>Your next stage · {nextLabel}</p>
+            <p className="mt-1.5 text-[12px] leading-5" style={{ color: C.body }}>Turn insight into action: explore your top domains, build the skills they reward, and follow a step-by-step plan towards your goal.</p>
           </div>
         </div>
 
@@ -1031,7 +1041,7 @@ export default function PsychometricReport({ profile }: { profile: PsychometricP
         <JourneyPage page={++pageNo} name={profile.name} />
 
         {/* ===== CURRENT STAGE OF PLANNING ===== */}
-        <StagePage page={++pageNo} name={profile.name} />
+        <StagePage page={++pageNo} name={profile.name} score={profile.overallScore} />
 
         {/* ===== TOP 5 DOMAINS (headline result) ===== */}
         <PageFrame page={++pageNo} kicker="Your recommended domains" name={profile.name}>
